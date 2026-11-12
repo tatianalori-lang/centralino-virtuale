@@ -24,7 +24,13 @@ const check = (label, ok, extra = '') => {
 check('ORDER senza urgency', !ORDER.includes('urgency'), ORDER.join(','));
 check('priorità predefinita', DEFAULT_TICKET_PRIORITY === 'media');
 check('zero squilli forzato', config.dialTimeoutSeconds === 0, String(config.dialTimeoutSeconds));
-check('prompt indirizzo senza "postale"', !/postale/.test(getStep('address').prompt), getStep('address').prompt);
+const addressPrompt = getStep('address').prompt;
+check('prompt indirizzo senza "postale"', !/postale/.test(addressPrompt), addressPrompt);
+check(
+  'prompt indirizzo senza specifiche',
+  !/con via|numero civico|città/i.test(addressPrompt),
+  addressPrompt
+);
 
 // Percorso completo del dialogo.
 const reply = {

@@ -127,7 +127,11 @@ writeprotect=no
 [from-messagenet]
 exten => h,1,NoOp(Fine chiamata MessageNet)
  same => n,Hangup()
-exten => _.,1,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALLERID(dnid)})
+; PRIMA COSA: 200 OK a MessageNet. Nessuna operazione (lettura header,
+; variabili, log) deve ritardare la risposta: ogni ritardo si traduce in
+; squilli sentiti dal chiamante sulla tratta TIM deviata.
+exten => _.,1,Answer()
+ same => n,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALLERID(dnid)})
  same => n,Set(__MTI_CALLER=\${CALLERID(num)})
  same => n,Set(__MTI_DID=\${CALLERID(dnid)})
 ; Sulle deviazioni l'identita' originale puo' stare in questi header.
@@ -135,7 +139,6 @@ exten => _.,1,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALL
  same => n,Set(__MTI_RPID=\${PJSIP_HEADER(read,Remote-Party-ID)})
  same => n,Set(__MTI_DIV=\${PJSIP_HEADER(read,Diversion)})
  same => n,Set(__MTI_HIST=\${PJSIP_HEADER(read,History-Info)})
- same => n,Answer()
  same => n,Dial(PJSIP/endpoint-twilio,180,b(mti-headers^s^1))
  same => n,Hangup()
 
