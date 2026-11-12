@@ -9,7 +9,7 @@
 | Location | `fsn1` (Falkenstein, DE) |
 | OS | Ubuntu 24.04 LTS |
 | **IPv4 statico** | **`91.99.150.162`** |
-| Accesso | chiave SSH `centralino-deploy` (id `132474391`), privata in `C:\Users\segre\.ssh\centralino_deploy_ed25519` |
+| Accesso | chiave SSH `centralino-deploy` (id `132474391`), privata in `%USERPROFILE%\.ssh\centralino_deploy_ed25519` (sul PC: `C:\Users\info\.ssh\`) |
 | URL attivo | **`https://centralino.mtitaliaretail.com`** (certificato Let's Encrypt) |
 | Webhook | Telnyx `/telnyx/voice`, Twilio `/twilio/voice` → dominio aziendale |
 | DNS | `A centralino.mtitaliaretail.com → 91.99.150.162` su Aruba (nessun cambio NS) |
@@ -143,6 +143,48 @@ E infine, sul PC:
 # come Amministratore
 Disable-ScheduledTask -TaskName 'Centralino Virtuale'
 ```
+
+---
+
+## Deploy di aggiornamenti
+
+Dal PC, nella cartella del progetto:
+
+```powershell
+Set-Location C:\Users\info\Progetti\centralino-virtuale
+powershell -ExecutionPolicy Bypass -File scripts\deploy-vps.ps1
+```
+
+Lo script crea un pacchetto senza `node_modules`, `.git`, `data` e `.env`,
+lo copia sul VPS, fa un backup della versione precedente in
+`/root/backups/centralino-<data>.tar.gz`, esegue `npm ci --omit=dev`,
+riavvia `centralino.service` e verifica `/api/health` in locale e in HTTPS.
+I ticket (`data/tickets.json`) e la configurazione (`.env`) restano intatti.
+
+### Se la chiave SSH viene rifiutata (recupero via rescue Hetzner)
+
+La modalità rescue **non cambia la password root**. Da console Hetzner:
+
+1. **Security → API tokens** → genera un token temporaneo (Read & Write)
+2. Attiva la rescue:
+   `POST https://api.hetzner.cloud/v1/servers/175641936/actions/enable_rescue`
+   con body `{"type":"linux64"}` → la risposta contiene `root_password`
+3. `POST .../actions/reboot`, attendere ~30 s l'SSH
+4. Entrare come `root` con la password di rescue, poi:
+
+```bash
+mount /dev/sda1 /mnt
+mkdir -p /mnt/root/.ssh && chmod 700 /mnt/root/.ssh
+# incollare la chiave pubblica (centralino_deploy_ed25519.pub)
+echo 'ssh-ed25519 AAAA...' >> /mnt/root/.ssh/authorized_keys
+chmod 600 /mnt/root/.ssh/authorized_keys
+chown -R root:root /mnt/root/.ssh
+sync && umount /mnt
+```
+
+5. `POST .../actions/disable_rescue` + `POST .../actions/reboot`
+6. Verificare `ssh -i <chiave> root@91.99.150.162` e lanciare il deploy
+7. **Revocare il token API** dalla console (Delete)
 
 ---
 
