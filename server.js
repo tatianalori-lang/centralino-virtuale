@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { catalog, config, twilioStatus } from './lib/config.js';
+import { resolveCallerNumber } from './lib/callerId.js';
 import * as store from './lib/store.js';
 import {
   buildInterruptedTicketData,
@@ -87,17 +88,6 @@ function xml(res, content) {
 }
 
 /**
- * Le chiamate che arrivano dal SIP Domain Twilio (ponte MessageNet) portano
- * From/To come URI SIP (es. sip:+393480025630@host): estraiamo il numero.
- * Va applicato DOPO la validazione della firma, che usa i parametri originali.
- */
-function phoneFromSip(value) {
-  const raw = String(value || '').trim();
-  const match = raw.match(/^sip:([^@;]+)@/i);
-  return match ? match[1] : raw;
-}
-
-/**
  * Normalizza i parametri dei webhook TeXML (compatibili con TwiML, ma con
  * possibili alias in snake_case / call_control_id).
  */
@@ -133,7 +123,6 @@ app.get('/api/meta', (req, res) => {
     companyName: config.companyName,
     reasons: catalog.reasons,
     products: catalog.products,
-    urgencies: catalog.urgencies,
     statuses: STATUSES,
     priorities: PRIORITIES
   });
@@ -380,7 +369,8 @@ app.post(
   validateTwilioRequest,
   asyncRoute(async (req, res) => {
     const { CallSid, To } = req.body;
-    const From = phoneFromSip(req.body.From);
+    // Dal caller ID, non dal numero del centralino (vedi lib/callerId.js).
+    const From = resolveCallerNumber(req.body, { log: true });
     const forward = store.getForwardSettings();
 
     // Modalità inoltro diretto: tutte le chiamate vanno al centralino.
@@ -393,7 +383,6 @@ app.post(
           reason: 'Inoltro diretto',
           product: '',
           issue: 'Chiamata inoltrata direttamente al centralino.',
-          urgency: 'Media',
           priority: 'media',
           source: 'inoltro',
           call: { sid: CallSid, from: From, to: To }
@@ -412,7 +401,7 @@ app.post(
   validateTwilioRequest,
   asyncRoute(async (req, res) => {
     const { CallSid, To, Digits, SpeechResult } = req.body;
-    const From = phoneFromSip(req.body.From);
+    const From = resolveCallerNumber(req.body);
     const session = getOrCreateSession({ callSid: CallSid, from: From, to: To });
 
     const result = handleTwilioStep(session, {
@@ -484,7 +473,8 @@ app.post(
   '/telnyx/voice',
   validateTelnyxRequest,
   asyncRoute(async (req, res) => {
-    const { CallSid, From, To } = telnyxParams(req);
+    const { CallSid, To } = telnyxParams(req);
+    const From = resolveCallerNumber(req.body, { log: true });
     const forward = store.getForwardSettings();
 
     if (forward.enabled && forward.number) {
@@ -496,7 +486,6 @@ app.post(
           reason: 'Inoltro diretto',
           product: '',
           issue: 'Chiamata inoltrata direttamente al centralino.',
-          urgency: 'Media',
           priority: 'media',
           source: 'inoltro',
           call: { sid: CallSid, from: From, to: To }
@@ -517,7 +506,8 @@ app.post(
   '/telnyx/voice/step',
   validateTelnyxRequest,
   asyncRoute(async (req, res) => {
-    const { CallSid, From, To, digits, speech } = telnyxParams(req);
+    const { CallSid, To, digits, speech } = telnyxParams(req);
+    const From = resolveCallerNumber(req.body);
     const session = getOrCreateSession({ callSid: CallSid, from: From, to: To });
 
     const result = handleTwilioStep(session, { digits, speech });

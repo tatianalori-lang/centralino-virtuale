@@ -161,6 +161,25 @@ lo copia sul VPS, fa un backup della versione precedente in
 riavvia `centralino.service` e verifica `/api/health` in locale e in HTTPS.
 I ticket (`data/tickets.json`) e la configurazione (`.env`) restano intatti.
 
+### Caller ID sul ponte SIP MessageNet → Twilio
+
+Sulle chiamate deviate il `From` del webhook può contenere il numero del
+centralino invece del chiamante. `lib/callerId.js` preferisce gli header
+`SipHeader_X-MTI-Caller` che Asterisk aggiunge all'INVITE verso Twilio e
+scarta comunque i numeri propri (centralino, MessageNet, Twilio, Telnyx):
+se non c'è un numero valido il campo telefono resta vuoto, mai fuorviante.
+
+Dopo aver aggiornato `scripts/genera-config-asterisk.mjs`, sul VPS:
+
+```bash
+cd /opt/centralino
+node scripts/genera-config-asterisk.mjs
+asterisk -rx "dialplan reload"
+```
+
+Nel journal le righe `[CallerID] ...` mostrano i parametri ricevuti, utili
+per diagnosticare nuove deviazioni. Verifica locale: `npm run verifica`.
+
 ### Se la chiave SSH viene rifiutata (recupero via rescue Hetzner)
 
 La modalità rescue **non cambia la password root**. Da console Hetzner:

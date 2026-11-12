@@ -11,10 +11,5 @@
     { "key": "3", "value": "Bilance" },
     { "key": "4", "value": "Registratori di cassa" },
     { "key": "5", "value": "Cassetti automatici" }
-  ],
-  "urgencies": [
-    { "key": "1", "value": "Bassa", "priority": "bassa" },
-    { "key": "2", "value": "Media", "priority": "media" },
-    { "key": "3", "value": "Alta", "priority": "alta" }
   ]
 }

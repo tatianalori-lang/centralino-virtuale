@@ -121,14 +121,24 @@ writeprotect=no
 
 ; Chiamata in ingresso da MessageNet: rispondiamo SUBITO (zero squilli)
 ; e la inoltriamo al SIP Domain Twilio che esegue il nostro IVR.
+; Sulle deviazioni il From SIP puo' contenere il numero del centralino:
+; passiamo comunque il caller ID noto ad Asterisk negli header X-MTI-*,
+; che Twilio espone al webhook come SipHeader_X-MTI-* (vedi lib/callerId.js).
 [from-messagenet]
 exten => h,1,NoOp(Fine chiamata MessageNet)
  same => n,Hangup()
 exten => _.,1,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALLERID(dnid)})
- same => n,Set(CALLERID(num)=\${CALLERID(num)})
+ same => n,Set(__MTI_CALLER=\${CALLERID(num)})
+ same => n,Set(__MTI_DID=\${CALLERID(dnid)})
  same => n,Answer()
- same => n,Dial(PJSIP/endpoint-twilio,180)
+ same => n,Dial(PJSIP/endpoint-twilio,180,b(mti-headers^s^1))
  same => n,Hangup()
+
+; Predial handler: header aggiunti sul canale uscente verso Twilio.
+[mti-headers]
+exten => s,1,Set(PJSIP_HEADER(add,X-MTI-Caller)=\${MTI_CALLER})
+ same => n,Set(PJSIP_HEADER(add,X-MTI-Did)=\${MTI_DID})
+ same => n,Return()
 
 [from-twilio]
 exten => _.,1,NoOp(Ingresso inatteso da Twilio)

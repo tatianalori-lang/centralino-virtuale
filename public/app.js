@@ -446,9 +446,6 @@ function renderDrawer(ticket) {
         <div class="detail"><div class="label">Prodotto</div><div class="value">${escapeHtml(
           ticket.product || '—'
         )}</div></div>
-        <div class="detail"><div class="label">Urgenza</div><div class="value"><span class="badge ${escapeHtml(
-          ticket.priority
-        )}">${escapeHtml(ticket.urgency || '—')}</span></div></div>
         <div class="detail"><div class="label">Priorità</div><div class="value"><span class="badge ${escapeHtml(
           ticket.priority
         )}">${escapeHtml(priorityLabel(ticket.priority))}</span></div></div>

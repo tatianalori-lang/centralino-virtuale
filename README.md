@@ -12,12 +12,11 @@ Include anche un **simulatore di chiamata** nel browser per provare tutto il flu
 | --- | --- |
 | Nome | Riconoscimento vocale |
 | Azienda | Riconoscimento vocale (opzionale) |
-| Telefono | Numero chiamante, con possibilità di inserirne un altro da tastiera |
+| Telefono | Numero chiamante rilevato dal caller ID (mai il numero del centralino) |
 | Motivo della chiamata | Menu DTMF (assistenza, commerciale, amministrazione, altro) |
 | Prodotto/servizio | Richiesta generica a voce, testo libero (nessuna selezione da elenco) — solo per *Assistenza tecnica* |
 | Problematica | Descrizione vocale libera |
-| Urgenza | Menu DTMF (bassa, media, alta) |
-| Priorità ticket | Calcolata automaticamente dall'urgenza |
+| Priorità ticket | Predefinita a *Media* (modificabile dalla dashboard) |
 
 Alla fine il centralino legge un riepilogo, chiede conferma, registra il ticket e offre il trasferimento a un operatore.
 
@@ -255,13 +254,14 @@ Con `IVR_INPUT=voice` (default) **nessun tasto è richiesto**: tutti i passi usa
 | --- | --- |
 | Motivo | «assistenza tecnica», «informazioni commerciali», «amministrazione», «altro» |
 | Prodotto/servizio | descrizione libera, es. «la bilancia del banco», oppure «salta» — solo per *Assistenza tecnica* |
-| Urgenza | «bassa», «media», «urgente» |
 | Conferma finale | «conferma», «ricomincia» |
 | Dopo il ticket | «operatore» oppure «WhatsApp» |
 
-Il riconoscimento accetta anche sinonimi e parole chiave («urgente» → Alta,
-«non lo so» → Altro, «confermo» → Conferma). Il telefono del chiamante viene
-registrato automaticamente dal caller ID, senza alcuna domanda.
+Il riconoscimento accetta anche sinonimi e parole chiave («non lo so» → Altro,
+«confermo» → Conferma). Il telefono del chiamante viene registrato
+automaticamente dal caller ID, senza alcuna domanda; non viene più chiesta
+l'urgenza e la priorità del ticket parte da *Media* (modificabile dalla
+dashboard).
 
 Impostando `IVR_INPUT=both` in `.env` si riabilitano anche i tasti DTMF come
 fallback silenzioso (`input="dtmf speech"`, con i numeri nuovamente annunciati).
@@ -285,7 +285,7 @@ La dashboard mostra il pannello **Modalità centralino** con i pulsanti **Virtua
 
 ## Personalizzazione
 
-### Motivi, prodotti e urgenze
+### Motivi e prodotti
 
 Modifica `config/catalog.json`:
 
@@ -301,16 +301,11 @@ Modifica `config/catalog.json`:
     { "key": "3", "value": "Bilance" },
     { "key": "4", "value": "Registratori di cassa" },
     { "key": "5", "value": "Cassetti automatici" }
-  ],
-  "urgencies": [
-    { "key": "1", "value": "Bassa", "priority": "bassa" },
-    { "key": "2", "value": "Media", "priority": "media" },
-    { "key": "3", "value": "Alta", "priority": "alta" }
   ]
 }
 ```
 
-Riavvia il server dopo la modifica. I menu vocali (motivo, urgenza) e i filtri
+Riavvia il server dopo la modifica. I menu vocali (motivo) e i filtri
 della dashboard si aggiornano automaticamente.
 
 > **Nota**: l'elenco `products` **non viene più usato come menu a scelta
@@ -413,7 +408,7 @@ I ticket sono salvati in `data/tickets.json` (creato al primo utilizzo). Il file
 | Metodo | Endpoint | Descrizione |
 | --- | --- | --- |
 | GET | `/api/health` | Stato del server |
-| GET | `/api/meta` | Motivi, prodotti, urgenze, stati |
+| GET | `/api/meta` | Motivi, prodotti, stati e priorità |
 | GET | `/api/twilio/status` | Verifica configurazione Twilio |
 | GET | `/api/telnyx/status` | Verifica configurazione Telnyx / numero italiano |
 | GET | `/api/whatsapp/status` | Verifica configurazione notifiche WhatsApp |
@@ -458,7 +453,6 @@ Chiamata in entrata (modalità `voice`: solo voce, nessun tasto)
        per Informazioni commerciali, Amministrazione e fatturazione e Altro
        il passo viene saltato e il campo prodotto resta vuoto
      → problematica (voce)
-     → urgenza (voce)
      → nome (voce)
      → nome della società (voce)
      → indirizzo postale (voce)
@@ -573,9 +567,10 @@ Controlla che `ngrok` sia in esecuzione (`ngrok http 3000`) e che il webhook Tel
 .
 ├── server.js              # Server Express, API e webhook Twilio
 ├── config/
-│   └── catalog.json       # Motivi, prodotti (filtro dashboard), urgenze
+│   └── catalog.json       # Motivi e prodotti (filtro dashboard)
 ├── lib/
 │   ├── config.js          # Lettura .env e catalogo
+│   ├── callerId.js        # Risoluzione del numero del chiamante (SIP)
 │   ├── flow.js            # Passi del dialogo e interpretazione risposte
 │   ├── ivr.js             # TwiML e sessioni telefoniche
 │   ├── simulator.js       # Motore del simulatore web
@@ -602,6 +597,7 @@ Controlla che `ngrok` sia in esecuzione (`ngrok http 3000`) e che il webhook Tel
 │   ├── avvia-tutto.ps1     # Avvio manuale server + ngrok (sessione utente)
 │   ├── installa-avvio.ps1  # Crea il task SYSTEM pre-login (come admin)
 │   ├── verifica-avvio.ps1  # Verifica il task (come admin)
+│   ├── verifica-flusso.mjs # Test flusso IVR, ticket e caller ID (`npm run verifica`)
 │   └── avvia-tunnel.ps1    # Avvia il Cloudflare Tunnel (opzione non scelta)
 ├── docs/                   # Guide numero italiano, portabilità, PC spento, Cloudflare
 ├── data/                   # Ticket e impostazioni (generato)
