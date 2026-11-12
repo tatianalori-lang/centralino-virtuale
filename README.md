@@ -283,14 +283,13 @@ Con `IVR_INPUT=voice` (default) **nessun tasto è richiesto**: tutti i passi usa
 | --- | --- |
 | Motivo | «assistenza tecnica», «informazioni commerciali», «amministrazione», «altro» |
 | Prodotto/servizio | descrizione libera, es. «la bilancia del banco», oppure «salta» — solo per *Assistenza tecnica* |
-| Conferma finale | «conferma», «ricomincia» |
 | Dopo il ticket | «operatore» oppure «WhatsApp» |
 
-Il riconoscimento accetta anche sinonimi e parole chiave («non lo so» → Altro,
-«confermo» → Conferma). Il telefono del chiamante viene registrato
-automaticamente dal caller ID, senza alcuna domanda; non viene più chiesta
-l'urgenza e la priorità del ticket parte da *Media* (modificabile dalla
-dashboard).
+Il riconoscimento accetta anche sinonimi («non lo so» → Altro). **Non c'è più
+un passo di conferma**: il ticket viene creato subito dopo l'ultimo dato
+raccolto. Il telefono del chiamante viene preso dal caller ID; se la rete non
+lo passa viene chiesto a voce o con i tasti. Non viene più chiesta l'urgenza e
+la priorità del ticket parte da *Media* (modificabile dalla dashboard).
 
 Impostando `IVR_INPUT=both` in `.env` si riabilitano anche i tasti DTMF come
 fallback silenzioso (`input="dtmf speech"`, con i numeri nuovamente annunciati).
@@ -501,12 +500,11 @@ Chiamata in entrata (modalità `voice`: solo voce, nessun tasto)
        il passo viene saltato e il campo prodotto resta vuoto
      → problematica (voce)
      → nome (voce)
-     → nome della società (voce)
-     → indirizzo (voce)
      → telefono: automatico dal caller ID; se la rete non lo passa
        (deviazione TIM) viene chiesto a voce o con i tasti
-     → riepilogo + conferma (voce)
-     → creazione ticket
+     → nome della società (voce)
+     → indirizzo (voce)
+     → creazione ticket (senza conferma)
      → invio email del ticket a assistenza@mtitaliaretail.com
      → a voce: «operatore» o «WhatsApp»
 ```
@@ -574,13 +572,13 @@ disattivata**, quindi nessun intervento viene creato durante i test. L'API è
 `422 needCliente` solo se manca anche il fallback). Stato:
 `/api/interventi/status` (espone `defaultCliente` e `autoOpen`).
 
-### Conferma, dati e inoltro
+### Dati e inoltro
 
-- **Nessun dato del chiamante viene riletto**: il riepilogo chiede solo la
-  conferma («La sua richiesta è pronta. Dica conferma…») e il messaggio finale
-  comunica soltanto il numero di ticket e «Sarà contattato al più presto».
-- **«Salta»**: su qualsiasi domanda di dati (problematica, nome, società,
-  indirizzo) il chiamante può dire *salta*. Il campo assume il valore
+- **Nessuna conferma**: non c'è un passo di riepilogo/conferma. Il ticket viene
+  creato subito dopo l'ultimo dato raccolto e il messaggio finale comunica
+  soltanto il numero di ticket e «Sarà contattato al più presto».
+- **«Salta»**: su qualsiasi domanda di dati (problematica, nome, telefono,
+  società, indirizzo) il chiamante può dire *salta*. Il campo assume il valore
   predefinito (`Non specificata`, `Non fornito`, vuoto per i campi facoltativi).
   Il CAP **non viene richiesto**.
 - **Richiesta generica sul prodotto/servizio**: posta solo se il motivo è

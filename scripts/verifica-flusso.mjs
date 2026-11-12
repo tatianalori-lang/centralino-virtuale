@@ -46,8 +46,7 @@ const reply = {
   issue: 'il display non si accende',
   name: 'Maria Rossi',
   company: 'Bar Centrale',
-  address: 'Via Roma 1, Roma',
-  confirm: 'conferma'
+  address: 'Via Roma 1, Roma'
 };
 let step = 'reason';
 let answers = { phone: '+393331234567' };
@@ -60,7 +59,8 @@ for (let i = 0; i < 20 && step !== 'done'; i += 1) {
   step = out.outcome === 'done' ? 'done' : out.nextStep;
 }
 check('nessun passo urgenza', !visited.includes('urgency'), visited.join(' -> '));
-check('dialogo completato', step === 'done');
+check('nessun passo conferma', !visited.includes('confirm'), visited.join(' -> '));
+check('dialogo completato senza conferma', step === 'done');
 check('nessun campo urgency nelle risposte', !('urgency' in answers), JSON.stringify(answers));
 
 const session = {
