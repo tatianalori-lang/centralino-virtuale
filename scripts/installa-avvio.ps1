@@ -18,7 +18,8 @@ if (-not $isAdmin) {
   exit 1
 }
 
-$root   = 'C:\Users\segre\OneDrive\Documenti\Progetto predefinito'
+# Radice del progetto = cartella superiore a scripts\
+$root   = Split-Path -Parent $PSScriptRoot
 $dest   = 'C:\ProgramData\CentralinoVirtuale'
 $node   = 'C:\Program Files\nodejs\node.exe'
 $logDir = Join-Path $dest 'logs'
@@ -36,9 +37,9 @@ if ($sourceExe -and (Test-Path -LiteralPath $sourceExe)) {
 }
 
 # --- config con authtoken, copiato dal percorso virtualizzato MSIX ---
-$userCfg = 'C:\Users\segre\AppData\Local\Packages\ngrok.ngrok_1g87z0zv29zzc\LocalCache\Local\ngrok\ngrok.yml'
+$userCfg = Join-Path $env:USERPROFILE 'AppData\Local\Packages\ngrok.ngrok_1g87z0zv29zzc\LocalCache\Local\ngrok\ngrok.yml'
 if (-not (Test-Path -LiteralPath $userCfg)) {
-  $found = Get-ChildItem 'C:\Users\segre\AppData\Local\Packages' -Recurse -Filter 'ngrok.yml' -Force -ErrorAction SilentlyContinue |
+  $found = Get-ChildItem (Join-Path $env:USERPROFILE 'AppData\Local\Packages') -Recurse -Filter 'ngrok.yml' -Force -ErrorAction SilentlyContinue |
     Select-Object -First 1 -ExpandProperty FullName
   if (-not $found) { throw 'Config ngrok con authtoken non trovata.' }
   $userCfg = $found
@@ -51,7 +52,7 @@ Copy-Item -LiteralPath $userCfg -Destination (Join-Path $dest 'ngrok.yml') -Forc
 # --- Launcher eseguito da SYSTEM ---
 $launcher = @'
 $ErrorActionPreference = 'Stop'
-$root   = 'C:\Users\segre\OneDrive\Documenti\Progetto predefinito'
+$root   = '__PROJECT_ROOT__'
 $dest   = 'C:\ProgramData\CentralinoVirtuale'
 $node   = 'C:\Program Files\nodejs\node.exe'
 $ngrok  = Join-Path $dest 'ngrok.exe'
@@ -109,6 +110,7 @@ if ($tunnelUrl) {
   } catch { Log "ATTENZIONE pubblico: $($_.Exception.Message)" }
 }
 '@
+$launcher = $launcher.Replace('__PROJECT_ROOT__', $root)
 Set-Content -Path (Join-Path $dest 'avvia.ps1') -Value $launcher -Encoding UTF8
 
 # --- Attività pianificata: all'avvio + watchdog ogni 5 min (idempotente) ---
