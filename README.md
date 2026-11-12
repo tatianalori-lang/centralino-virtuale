@@ -168,15 +168,27 @@ Per questo il centralino **non chiede mai il numero a voce**:
   invece di salvarli come se fossero del chiamante;
 - se la rete non lo passa, il campo resta **vuoto** (mai un numero sbagliato).
 
-Per averlo in automatico su `067821202` serve intervenire su TIM (191 / portale
-Webex: inoltro sempre con presentazione del CLI originale) oppure portare il
-numero su MessageNet/Telnyx. Chiamando direttamente `0686358716` il numero del
-chiamante arriva già corretto e la risposta è senza squilli.
+### ✅ Soluzione adottata: intervenire su TIM
 
-> Il numero vero è comunque presente nei **registri chiamate di Webex/TIM** e
-> MessageNet: per leggerli in automatico serve un token API dell'amministratore
-> (Webex Control Hub, Service App con scope `spark-admin:telephony_cdr_read`).
-> Con quel token si può arricchire il ticket a ogni chiamata.
+La strada scelta è **far passare il numero dalla rete**, senza API e senza
+domande al chiamante. Richiesta pronta da inoltrare a TIM / all'amministratore
+Webex: [`docs/richiesta-tim-cli.md`](docs/richiesta-tim-cli.md).
+
+In sintesi: sulla linea `067821202` impostare **«Inoltro sempre»** verso
+`0686358716` (non «su non risposta») e **presentare il CLI del chiamante
+originale** nella deviazione, segnalandola con `Diversion`/`History-Info`.
+Questo risolve insieme **numero del chiamante** e **squilli**. Il codice del
+centralino è già pronto: non appena la rete passa il numero vero, il ticket lo
+mostra da solo.
+
+Alternativa immediata senza attendere TIM: pubblicare **`0686358716`** come
+numero principale — conserva il numero del chiamante e risponde in ~1 s con
+zero squilli.
+
+> Solo come **fallback non adottato**: il numero vero è comunque nei registri
+> chiamate Webex/TIM; per leggerli in automatico servirebbe un token API
+> dell'amministratore (Control Hub, Service App con scope
+> `spark-admin:calling_cdr_read`), supportato da `scripts/webex-cdr.mjs`.
 
 ### 4. Verifica la firma (consigliato)
 
@@ -663,7 +675,7 @@ Controlla che `ngrok` sia in esecuzione (`ngrok http 3000`) e che il webhook Tel
 │   ├── verifica-avvio.ps1  # Verifica il task (come admin)
 │   ├── verifica-flusso.mjs # Test flusso IVR, ticket e caller ID (`npm run verifica`)
 │   └── avvia-tunnel.ps1    # Avvia il Cloudflare Tunnel (opzione non scelta)
-├── docs/                   # Guide numero italiano, portabilità, PC spento, Cloudflare
+├── docs/                   # Guide numero italiano, portabilità, PC spento, Cloudflare, richiesta TIM CLI
 ├── data/                   # Ticket e impostazioni (generato)
 ├── .env.example
 └── package.json
