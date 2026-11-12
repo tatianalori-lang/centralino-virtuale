@@ -1,4 +1,11 @@
-import { ORDER, getStep, handleAnswer, DEFAULT_TICKET_PRIORITY } from '../lib/flow.js';
+import {
+  ORDER,
+  getStep,
+  handleAnswer,
+  interpret,
+  requiresPhone,
+  DEFAULT_TICKET_PRIORITY
+} from '../lib/flow.js';
 import {
   buildTicketData,
   buildInterruptedTicketData,
@@ -145,6 +152,43 @@ const stati = [
   { id: 10, descrizione: '4 IN MT', completato: false },
   { id: 13, descrizione: '3 CHIUSO', completato: true }
 ];
+// Numero del chiamante: chiesto solo se la rete non l'ha passato.
+check('phone richiesto senza caller ID', requiresPhone({}) === true);
+check('phone non richiesto con caller ID', requiresPhone({ phone: '+393331234567' }) === false);
+
+const phoneStep = getStep('phone');
+check('step phone accetta tasti', phoneStep.allowDigits === true);
+check(
+  'numero digitato normalizzato',
+  interpret(phoneStep, { digits: '3331234567#' }).value === '3331234567',
+  JSON.stringify(interpret(phoneStep, { digits: '3331234567#' }).value)
+);
+check(
+  'numero parlato convertito in cifre',
+  interpret(phoneStep, { speech: 'tre tre tre uno due tre quattro cinque sei sette' }).value ===
+    '3331234567',
+  JSON.stringify(
+    interpret(phoneStep, { speech: 'tre tre tre uno due tre quattro cinque sei sette' }).value
+  )
+);
+check(
+  '"salta" sul telefono lascia vuoto',
+  interpret(phoneStep, { speech: 'salta' }).value === ''
+);
+
+let stepPhone = 'issue';
+let answersPhone = { reason: 'Altro', issue: 'Display rotto' };
+const visitedPhone = [];
+for (let i = 0; i < 12 && stepPhone !== 'done'; i += 1) {
+  const s = getStep(stepPhone, answersPhone);
+  visitedPhone.push(s.id);
+  const out = handleAnswer(stepPhone, answersPhone, '', { speech: 'salta' }, 0);
+  answersPhone = out.answers;
+  stepPhone = out.outcome === 'done' ? 'done' : out.nextStep;
+}
+check('senza caller ID il flusso chiede il numero', visitedPhone.includes('phone'), visitedPhone.join(' -> '));
+check('con caller ID il flusso salta il numero', !visited.includes('phone'), visited.join(' -> '));
+
 check('tipo tecnico scelto', scegliTipoTecnico(tipi, 2) === 1, String(scegliTipoTecnico(tipi, 2)));
 check('stato DA PROGRAMMARE scelto', scegliStatoTecnico(stati, 9) === 2, String(scegliStatoTecnico(stati, 9)));
 check(

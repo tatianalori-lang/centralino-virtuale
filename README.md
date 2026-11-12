@@ -12,7 +12,7 @@ Include anche un **simulatore di chiamata** nel browser per provare tutto il flu
 | --- | --- |
 | Nome | Riconoscimento vocale |
 | Azienda | Riconoscimento vocale (opzionale) |
-| Telefono | Numero chiamante rilevato dal caller ID (mai il numero del centralino) |
+| Telefono | Dal caller ID; se la rete non lo passa, chiesto a voce o con i tasti (mai il numero del centralino) |
 | Motivo della chiamata | Menu DTMF (assistenza, commerciale, amministrazione, altro) |
 | Prodotto/servizio | Richiesta generica a voce, testo libero (nessuna selezione da elenco) — solo per *Assistenza tecnica* |
 | Problematica | Descrizione vocale libera |
@@ -151,6 +151,30 @@ Per azzerarli:
 
 Non è possibile eliminare questi squilli dal codice del centralino: sono
 generati dalla rete dell'operatore prima della risposta.
+
+#### Numero del chiamante sulle deviazioni TIM
+
+La stessa deviazione TIM **sostituisce il numero di chi chiama con il numero
+della linea deviata** (`+39067821202`). Dal CDR di Asterisk: tutte le chiamate
+inolttrate hanno `src=+39067821202`; solo la chiamata **diretta** a
+`+39 06 8635 8716` conserva il numero vero. Gli header SIP di identità
+(`P-Asserted-Identity`, `Remote-Party-ID`, `Diversion`, `History-Info`) arrivano
+vuoti, quindi il numero originale non è recuperabile lato centralino.
+
+Per questo il centralino:
+
+- usa automaticamente il caller ID quando è disponibile e valido;
+- **scarta** i numeri propri (centralino, account MessageNet, Twilio, Telnyx)
+  invece di salvarli come se fossero del chiamante;
+- quando manca, **chiede il numero al chiamante** («Mi dica o digiti il suo
+  numero di telefono, oppure dica salta»): si possono usare anche i tasti, con
+  `finishOnKey="#"`, così il numero è esatto. La domanda non compare se il
+  caller ID è già presente.
+
+Per averlo in automatico su `067821202` serve intervenire su TIM (191 / portale
+Webex: inoltro sempre con presentazione del CLI originale) oppure portare il
+numero su MessageNet/Telnyx. Chiamando direttamente `0686358716` il numero del
+chiamante arriva già corretto e la risposta è senza squilli.
 
 ### 4. Verifica la firma (consigliato)
 
@@ -479,7 +503,8 @@ Chiamata in entrata (modalità `voice`: solo voce, nessun tasto)
      → nome (voce)
      → nome della società (voce)
      → indirizzo (voce)
-     → telefono del chiamante: registrato automaticamente dal caller ID
+     → telefono: automatico dal caller ID; se la rete non lo passa
+       (deviazione TIM) viene chiesto a voce o con i tasti
      → riepilogo + conferma (voce)
      → creazione ticket
      → invio email del ticket a assistenza@mtitaliaretail.com
