@@ -12,7 +12,7 @@ Include anche un **simulatore di chiamata** nel browser per provare tutto il flu
 | --- | --- |
 | Nome | Riconoscimento vocale |
 | Azienda | Riconoscimento vocale (opzionale) |
-| Telefono | Dal caller ID; se la rete non lo passa, chiesto a voce o con i tasti (mai il numero del centralino) |
+| Telefono | Solo dal caller ID passato dalla rete (mai chiesto a voce, mai il numero del centralino) |
 | Motivo della chiamata | Menu DTMF (assistenza, commerciale, amministrazione, altro) |
 | Prodotto/servizio | Richiesta generica a voce, testo libero (nessuna selezione da elenco) — solo per *Assistenza tecnica* |
 | Problematica | Descrizione vocale libera |
@@ -161,20 +161,22 @@ inolttrate hanno `src=+39067821202`; solo la chiamata **diretta** a
 (`P-Asserted-Identity`, `Remote-Party-ID`, `Diversion`, `History-Info`) arrivano
 vuoti, quindi il numero originale non è recuperabile lato centralino.
 
-Per questo il centralino:
+Per questo il centralino **non chiede mai il numero a voce**:
 
 - usa automaticamente il caller ID quando è disponibile e valido;
 - **scarta** i numeri propri (centralino, account MessageNet, Twilio, Telnyx)
   invece di salvarli come se fossero del chiamante;
-- quando manca, **chiede il numero al chiamante** («Mi dica o digiti il suo
-  numero di telefono, oppure dica salta»): si possono usare anche i tasti, con
-  `finishOnKey="#"`, così il numero è esatto. La domanda non compare se il
-  caller ID è già presente.
+- se la rete non lo passa, il campo resta **vuoto** (mai un numero sbagliato).
 
 Per averlo in automatico su `067821202` serve intervenire su TIM (191 / portale
 Webex: inoltro sempre con presentazione del CLI originale) oppure portare il
 numero su MessageNet/Telnyx. Chiamando direttamente `0686358716` il numero del
 chiamante arriva già corretto e la risposta è senza squilli.
+
+> Il numero vero è comunque presente nei **registri chiamate di Webex/TIM** e
+> MessageNet: per leggerli in automatico serve un token API dell'amministratore
+> (Webex Control Hub, Service App con scope `spark-admin:telephony_cdr_read`).
+> Con quel token si può arricchire il ticket a ogni chiamata.
 
 ### 4. Verifica la firma (consigliato)
 
@@ -287,9 +289,9 @@ Con `IVR_INPUT=voice` (default) **nessun tasto è richiesto**: tutti i passi usa
 
 Il riconoscimento accetta anche sinonimi («non lo so» → Altro). **Non c'è più
 un passo di conferma**: il ticket viene creato subito dopo l'ultimo dato
-raccolto. Il telefono del chiamante viene preso dal caller ID; se la rete non
-lo passa viene chiesto a voce o con i tasti. Non viene più chiesta l'urgenza e
-la priorità del ticket parte da *Media* (modificabile dalla dashboard).
+raccolto. Il telefono del chiamante viene preso solo dal caller ID e **non
+viene mai chiesto a voce**. Non viene più chiesta l'urgenza e la priorità del
+ticket parte da *Media* (modificabile dalla dashboard).
 
 Impostando `IVR_INPUT=both` in `.env` si riabilitano anche i tasti DTMF come
 fallback silenzioso (`input="dtmf speech"`, con i numeri nuovamente annunciati).
@@ -500,8 +502,7 @@ Chiamata in entrata (modalità `voice`: solo voce, nessun tasto)
        il passo viene saltato e il campo prodotto resta vuoto
      → problematica (voce)
      → nome (voce)
-     → telefono: automatico dal caller ID; se la rete non lo passa
-       (deviazione TIM) viene chiesto a voce o con i tasti
+     → telefono: preso automaticamente dal caller ID, mai chiesto a voce
      → nome della società (voce)
      → indirizzo (voce)
      → creazione ticket (senza conferma)
