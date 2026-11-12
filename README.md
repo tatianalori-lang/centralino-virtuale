@@ -489,6 +489,22 @@ Se il chiamante non risponde due volte a un passo, il centralino usa un valore p
 
 ### Collegamento agli interventi tecnici
 
+Ogni ticket telefonico diventa una **scheda di intervento tecnico**, non un
+promemoria. Il tipo e lo stato vengono risolti dai metadati OSM:
+
+| Campo | Valore scelto | Escluso |
+| --- | --- | --- |
+| Tipo | «Settore tecnico» (id `1`) | tipi commerciali / di verificazione |
+| Stato | «1 DA PROGRAMMARE» (id `2`) | **«8 PROMEMORIA» (id `9`)**, stati chiusi e completati |
+
+Il testo della richiesta è una scheda strutturata (`SCHEDA DI INTERVENTO
+TECNICO · Ticket …`, chiamante, azienda, telefono, indirizzo, motivo,
+prodotto, priorità, problematica). Se i default OSM cambiassero, il centralino
+continua a scegliere un tipo tecnico e uno stato aperto; se non li trova
+**non crea l'intervento** piuttosto che creare un promemoria. Per forzare ID
+diversi usare `INTERVENTI_TIPO_ID` e `INTERVENTI_STATO_ID` (anche questi non
+possono puntare a «PROMEMORIA»).
+
 **La chiamata si apre da sola su OSM**: non appena una chiamata produce un ticket
 telefonico (`source: telefono`), il centralino crea l'intervento su *Gestione
 Interventi* **in background**, senza click e senza far attendere il chiamante, e
@@ -519,7 +535,8 @@ npm run apri-intervento -- TK-20261111-0001 1 --dry-run # verifica il payload
 
 Configurazione (`.env`): `INTERVENTI_URL`, `INTERVENTI_USERNAME`,
 `INTERVENTI_PASSWORD`, `INTERVENTI_DEFAULT_CLIENTE` (id dell'anagrafica di
-fallback, es. `6830` = CENTRALINO) e `INTERVENTI_AUTO_OPEN` (default `true`:
+fallback, es. `6830` = CENTRALINO), `INTERVENTI_TIPO_ID` / `INTERVENTI_STATO_ID`
+(opzionali, forzano tipo e stato della scheda tecnica) e `INTERVENTI_AUTO_OPEN` (default `true`:
 apre la chiamata da solo; impostare a `false` per eseguire test contro il VPS
 senza scrivere su OSM). **Se le credenziali mancano l'integrazione è
 disattivata**, quindi nessun intervento viene creato durante i test. L'API è

@@ -7,6 +7,11 @@ import {
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
+import {
+  scegliTipoTecnico,
+  scegliStatoTecnico,
+  buildRichiesta
+} from '../lib/interventi.js';
 import * as store from '../lib/store.js';
 
 let fail = 0;
@@ -107,6 +112,38 @@ await new Promise((r) => setTimeout(r, 60));
 clearInterval(watcher2);
 check('watcher: nessun duplicato se il ticket esiste', duplicated === 0, String(duplicated));
 check('store.completeTicket disponibile', typeof store.completeTicket === 'function');
+
+// Scheda di intervento tecnico: tipo tecnico, stato aperto, mai PROMEMORIA.
+const tipi = [
+  { id: 1, descrizione: 'Settore tecnico' },
+  { id: 2, descrizione: 'Settore commerciale' },
+  { id: 3, descrizione: 'VERIFICAZIONE PERIODICA NAWI' },
+  { id: 4, descrizione: 'Registro richieste attività di verificazione periodica' }
+];
+const stati = [
+  { id: 2, descrizione: '1 DA PROGRAMMARE', completato: false },
+  { id: 3, descrizione: 'FATTURATO', completato: true },
+  { id: 9, descrizione: '8 PROMEMORIA', completato: false },
+  { id: 10, descrizione: '4 IN MT', completato: false },
+  { id: 13, descrizione: '3 CHIUSO', completato: true }
+];
+check('tipo tecnico scelto', scegliTipoTecnico(tipi, 2) === 1, String(scegliTipoTecnico(tipi, 2)));
+check('stato DA PROGRAMMARE scelto', scegliStatoTecnico(stati, 9) === 2, String(scegliStatoTecnico(stati, 9)));
+check(
+  'PROMEMORIA mai scelto (anche se primo)',
+  scegliStatoTecnico([{ id: 9, descrizione: '8 PROMEMORIA', completato: false }], 9) === null
+);
+check(
+  'fallback PROMEMORIA rifiutato',
+  scegliStatoTecnico([{ id: 9, descrizione: '8 PROMEMORIA', completato: false }], 9) !== 9
+);
+const scheda = buildRichiesta({
+  id: 'TK-1', createdAt: '2026-11-12', priority: 'media',
+  caller: { name: 'Maria Rossi', company: 'Bar Centrale', phone: '+393331234567', address: 'Via Roma 1' },
+  reason: 'Assistenza tecnica', product: 'Bilancia', issue: 'Display rotto'
+});
+check('richiesta è una scheda di intervento tecnico', scheda.startsWith('SCHEDA DI INTERVENTO TECNICO'), scheda.split('\n')[0]);
+check('scheda senza riga Urgenza', !/Urgenza:/.test(scheda));
 
 console.log(fail === 0 ? '\nTUTTO OK' : `\n${fail} ERRORI`);
 process.exit(fail === 0 ? 0 : 1);
