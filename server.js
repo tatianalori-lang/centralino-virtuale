@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { catalog, config, twilioStatus } from './lib/config.js';
 import * as store from './lib/store.js';
 import {
+  buildInterruptedTicketData,
   buildTicketData,
   buildTransferTicketData,
   createSession,
@@ -38,6 +39,32 @@ const STATUSES = [
 ];
 
 const PRIORITIES = ['bassa', 'media', 'alta'];
+
+// Stati terminali di una chiamata: quando arriva il callback di stato con uno
+// di questi valori, se il chiamante non ha completato il dialogo apriamo
+// comunque il ticket con i dati raccolti fino a quel momento.
+const TERMINAL_CALL_STATUSES = new Set([
+  'completed',
+  'busy',
+  'failed',
+  'no-answer',
+  'canceled',
+  'cancelled',
+  'hangup',
+  'call.hangup'
+]);
+
+async function createTicketForInterruptedCall(callSid, rawStatus) {
+  const status = String(rawStatus || '').toLowerCase();
+  if (!callSid || !TERMINAL_CALL_STATUSES.has(status)) return null;
+  if (store.getTicketByCallSid(callSid)) return null;
+  const session = getSession(callSid);
+  if (!session || session.ticketId) return null;
+  const ticket = await store.createTicket(buildInterruptedTicketData(session));
+  session.ticketId = ticket.id;
+  console.log(`[Chiamata interrotta] ${callSid} -> ticket ${ticket.id}`);
+  return ticket;
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -438,11 +465,16 @@ app.post(
 );
 
 // Callback di stato delle chiamate (facoltativo, utile per diagnosi).
-app.post('/twilio/status', validateTwilioRequest, (req, res) => {
-  const { CallSid, CallStatus, From, To } = req.body;
-  console.log(`[Twilio] ${CallSid || '?'} ${CallStatus || '?'} ${From || '?'} -> ${To || '?'}`);
-  res.sendStatus(204);
-});
+app.post(
+  '/twilio/status',
+  validateTwilioRequest,
+  asyncRoute(async (req, res) => {
+    const { CallSid, CallStatus, From, To } = req.body;
+    console.log(`[Twilio] ${CallSid || '?'} ${CallStatus || '?'} ${From || '?'} -> ${To || '?'}`);
+    await createTicketForInterruptedCall(CallSid, CallStatus);
+    res.sendStatus(204);
+  })
+);
 
 // ---------------------------------------------------------------------------
 // Webhook Telnyx (TeXML) - numero italiano gestito direttamente, senza Twilio
@@ -542,13 +574,18 @@ app.post(
   })
 );
 
-app.post('/telnyx/status', validateTelnyxRequest, (req, res) => {
-  const b = req.body || {};
-  console.log(
-    `[Telnyx] ${b.call_control_id || b.CallSid || '?'} ${b.event_type || b.CallStatus || '?'}`
-  );
-  res.sendStatus(204);
-});
+app.post(
+  '/telnyx/status',
+  validateTelnyxRequest,
+  asyncRoute(async (req, res) => {
+    const b = req.body || {};
+    const callSid = b.CallSid || b.call_control_id;
+    const status = b.CallStatus || b.event_type;
+    console.log(`[Telnyx] ${callSid || '?'} ${status || '?'}`);
+    await createTicketForInterruptedCall(callSid, status);
+    res.sendStatus(204);
+  })
+);
 
 // ---------------------------------------------------------------------------
 // File statici e gestione errori
