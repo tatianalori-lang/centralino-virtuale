@@ -1,0 +1,3 @@
+centralino.mtitaliaretail.com {
+    reverse_proxy localhost:3000
+}

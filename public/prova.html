@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Prova il centralino · Centralino Virtuale</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="sim-layout">
+      <header class="sim-header">
+        <div>
+          <h1>Prova il centralino</h1>
+          <p class="muted">
+            Simulazione testuale dell'IVR. Le risposte creano un ticket reale nella dashboard.
+          </p>
+        </div>
+        <div class="topbar-actions">
+          <a class="btn btn-ghost" href="/">← Dashboard</a>
+          <button class="btn btn-ghost" id="restartBtn" type="button">Nuova chiamata</button>
+        </div>
+      </header>
+
+      <div class="phone-shell">
+        <div class="phone-screen">
+          <div class="phone-top">
+            <div class="phone-dot"></div>
+            <div>
+              <strong id="callerLabel">Chiamata in corso</strong>
+              <span>Centralino virtuale · IVR</span>
+            </div>
+          </div>
+
+          <div class="chat" id="chat"></div>
+          <div class="chat-options" id="chatOptions"></div>
+
+          <form class="chat-input" id="chatForm">
+            <input
+              id="chatInput"
+              type="text"
+              placeholder="Scrivi o seleziona un'opzione…"
+              autocomplete="off"
+            />
+            <button type="submit" id="sendBtn" aria-label="Invia">➤</button>
+          </form>
+        </div>
+      </div>
+
+      <p class="sim-hint">
+        Suggerimento: rispondi con il numero (es. <strong>1</strong>) oppure con il testo
+        (es. <strong>assistenza tecnica</strong>). Per saltare i campi opzionali scrivi
+        <strong>salta</strong>. La simulazione usa lo stesso motore del centralino telefonico.
+      </p>
+    </div>
+
+    <script src="/prova.js" type="module"></script>
+  </body>
+</html>

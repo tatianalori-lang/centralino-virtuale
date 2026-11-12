@@ -1,0 +1,18 @@
+[Unit]
+Description=Centralino Virtuale MT Italia
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=centralino
+Group=centralino
+WorkingDirectory=/opt/centralino
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

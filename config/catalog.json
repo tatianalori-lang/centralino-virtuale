@@ -1,0 +1,20 @@
+{
+  "reasons": [
+    { "key": "1", "value": "Assistenza tecnica" },
+    { "key": "2", "value": "Informazioni commerciali" },
+    { "key": "3", "value": "Amministrazione e fatturazione" },
+    { "key": "4", "value": "Altro" }
+  ],
+  "products": [
+    { "key": "1", "value": "Software" },
+    { "key": "2", "value": "Attrezzature" },
+    { "key": "3", "value": "Bilance" },
+    { "key": "4", "value": "Registratori di cassa" },
+    { "key": "5", "value": "Cassetti automatici" }
+  ],
+  "urgencies": [
+    { "key": "1", "value": "Bassa", "priority": "bassa" },
+    { "key": "2", "value": "Media", "priority": "media" },
+    { "key": "3", "value": "Alta", "priority": "alta" }
+  ]
+}

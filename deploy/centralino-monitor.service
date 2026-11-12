@@ -1,0 +1,18 @@
+[Unit]
+Description=Monitor approvazione numero Telnyx +390698237118
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=centralino
+Group=centralino
+WorkingDirectory=/opt/centralino
+ExecStart=/usr/bin/node scripts/monitora-telnyx.mjs
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

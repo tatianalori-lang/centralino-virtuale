@@ -1,0 +1,22 @@
+# Cloudflare Tunnel - centralino.mtitaliaretail.com
+#
+# Configurazione per il tunnel che espone il server locale (porta 3000)
+# con un URL pubblico stabile, senza ngrok e senza aprire porte sul router.
+#
+# PRIMA DI USARLO:
+#   1. cloudflared tunnel login
+#   2. cloudflared tunnel create centralino
+#   3. cloudflared tunnel route dns centralino centralino.mtitaliaretail.com
+#   4. Sostituisci <TUNNEL-UUID> qui sotto con l'ID restituito dal comando 2
+#      (si trova anche in C:\Users\segre\.cloudflared\<UUID>.json)
+#
+# AVVIO:
+#   .\scripts\avvia-tunnel.ps1
+
+tunnel: <TUNNEL-UUID>
+credentials-file: "C:/Users/segre/.cloudflared/<TUNNEL-UUID>.json"
+
+ingress:
+  - hostname: centralino.mtitaliaretail.com
+    service: http://localhost:3000
+  - service: http_status:404

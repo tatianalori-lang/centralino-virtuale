@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ascolta la voce del centralino · MT Italia</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <style>
+      .player-page {
+        max-width: 720px;
+        margin: 8vh auto;
+        padding: 0 20px;
+      }
+      .player-card {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 36px;
+      }
+      .player-card h1 {
+        margin: 0 0 8px;
+        font-size: 26px;
+      }
+      .player-card p {
+        color: var(--muted);
+        line-height: 1.6;
+        margin: 0 0 22px;
+      }
+      .player-card audio {
+        width: 100%;
+        margin: 6px 0 24px;
+      }
+      .badge {
+        display: inline-block;
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-radius: 999px;
+        padding: 5px 13px;
+        font-size: 13px;
+        font-weight: 600;
+        margin-bottom: 18px;
+      }
+      .prompt-list {
+        border-top: 1px solid var(--line);
+        padding-top: 18px;
+        font-size: 14px;
+        color: var(--muted);
+        line-height: 1.8;
+      }
+      .prompt-list strong { color: var(--ink); }
+      .links { margin-top: 22px; font-size: 14px; }
+    </style>
+  </head>
+  <body>
+    <main class="player-page">
+      <div class="player-card">
+        <span class="badge">Centralino MT Italia</span>
+        <h1>Ascolta la voce del centralino</h1>
+        <p>
+          Questi sono i messaggi che i chiamanti sentono sull'IVR.
+          Premi play per ascoltarli.
+        </p>
+        <audio controls preload="metadata" src="/audio/demo-voce-femminile.mp3">
+          Il tuo browser non supporta l'audio HTML5.
+        </audio>
+        <div class="prompt-list">
+          <strong>Frasi incluse nel campione:</strong><br />
+          · Benvenuto e scelta del motivo<br />
+          · Richiesta generica sul prodotto o servizio (nessun elenco di prodotti)<br />
+          · Problematica e urgenza<br />
+          · Conferma di registrazione della richiesta
+        </div>
+        <div class="links">
+          <a href="/audio/demo-voce-femminile.mp3">Scarica / apri l'MP3</a>
+          &nbsp;·&nbsp;
+          <a href="/">Torna alla dashboard</a>
+        </div>
+      </div>
+    </main>
+  </body>
+</html>

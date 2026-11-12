@@ -1,0 +1,6 @@
+[Unit]
+Description=Controlla e ripristina il centralino se non risponde
+
+[Service]
+Type=oneshot
+ExecStart=/opt/centralino/deploy/watchdog.sh
