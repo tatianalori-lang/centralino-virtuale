@@ -130,6 +130,11 @@ exten => h,1,NoOp(Fine chiamata MessageNet)
 exten => _.,1,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALLERID(dnid)})
  same => n,Set(__MTI_CALLER=\${CALLERID(num)})
  same => n,Set(__MTI_DID=\${CALLERID(dnid)})
+; Sulle deviazioni l'identita' originale puo' stare in questi header.
+ same => n,Set(__MTI_PAI=\${PJSIP_HEADER(read,P-Asserted-Identity)})
+ same => n,Set(__MTI_RPID=\${PJSIP_HEADER(read,Remote-Party-ID)})
+ same => n,Set(__MTI_DIV=\${PJSIP_HEADER(read,Diversion)})
+ same => n,Set(__MTI_HIST=\${PJSIP_HEADER(read,History-Info)})
  same => n,Answer()
  same => n,Dial(PJSIP/endpoint-twilio,180,b(mti-headers^s^1))
  same => n,Hangup()
@@ -138,6 +143,10 @@ exten => _.,1,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALL
 [mti-headers]
 exten => s,1,Set(PJSIP_HEADER(add,X-MTI-Caller)=\${MTI_CALLER})
  same => n,Set(PJSIP_HEADER(add,X-MTI-Did)=\${MTI_DID})
+ same => n,Set(PJSIP_HEADER(add,X-MTI-Pai)=\${MTI_PAI})
+ same => n,Set(PJSIP_HEADER(add,X-MTI-Rpid)=\${MTI_RPID})
+ same => n,Set(PJSIP_HEADER(add,X-MTI-Diversion)=\${MTI_DIV})
+ same => n,Set(PJSIP_HEADER(add,X-MTI-History)=\${MTI_HIST})
  same => n,Return()
 
 [from-twilio]

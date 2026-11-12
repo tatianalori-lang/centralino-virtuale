@@ -57,6 +57,16 @@ const cases = [
   ['solo numero centralino', { From: own, To: 'sip:centralino@x' }, ''],
   ['header X-MTI-Caller', { From: own, 'SipHeader_X-MTI-Caller': '+393480025630' }, '+393480025630'],
   ['header SIP con URI', { From: own, 'SipHeader_X-MTI-Caller': 'sip:+393480025630@x' }, '+393480025630'],
+  [
+    'History-Info con più URI (il primo è il centralino)',
+    {
+      From: own,
+      'SipHeader_X-MTI-Caller': '+39067821202',
+      'SipHeader_X-MTI-History':
+        '<sip:+39067821202@x>;index=1, <sip:+393480025630@x>;index=2'
+    },
+    '+393480025630'
+  ],
   ['From normale', { From: '+393331234567' }, '+393331234567'],
   ['nessun dato', { CallSid: 'CA1' }, '']
 ];
