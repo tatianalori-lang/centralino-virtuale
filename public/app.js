@@ -427,9 +427,13 @@ function renderDrawer(ticket) {
         <div class="detail"><div class="label">Telefono</div><div class="value">${escapeHtml(
           caller.phone || '—'
         )}</div></div>
-        <div class="detail"><div class="label">Email</div><div class="value">${escapeHtml(
-          caller.email || '—'
-        )}</div></div>
+        ${
+          caller.email
+            ? `<div class="detail"><div class="label">Email</div><div class="value">${escapeHtml(
+                caller.email
+              )}</div></div>`
+            : ''
+        }
         <div class="detail"><div class="label">Azienda</div><div class="value">${escapeHtml(
           caller.company || '—'
         )}</div></div>

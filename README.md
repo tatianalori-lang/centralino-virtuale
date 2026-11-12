@@ -10,9 +10,8 @@ Include anche un **simulatore di chiamata** nel browser per provare tutto il flu
 
 | Dato | Come |
 | --- | --- |
-| Nome e cognome | Riconoscimento vocale |
+| Nome | Riconoscimento vocale |
 | Azienda | Riconoscimento vocale (opzionale) |
-| Email | Riconoscimento vocale (opzionale) |
 | Telefono | Numero chiamante, con possibilità di inserirne un altro da tastiera |
 | Motivo della chiamata | Menu DTMF (assistenza, commerciale, amministrazione, altro) |
 | Prodotto/servizio | Richiesta generica a voce, testo libero (nessuna selezione da elenco) — solo per *Assistenza tecnica* |
@@ -460,10 +459,9 @@ Chiamata in entrata (modalità `voice`: solo voce, nessun tasto)
        il passo viene saltato e il campo prodotto resta vuoto
      → problematica (voce)
      → urgenza (voce)
-     → nome e cognome (voce)
+     → nome (voce)
      → nome della società (voce)
      → indirizzo postale (voce)
-     → email (voce, opzionale)
      → telefono del chiamante: registrato automaticamente dal caller ID
      → riepilogo + conferma (voce)
      → creazione ticket
@@ -523,7 +521,7 @@ disattivata**, quindi nessun intervento viene creato durante i test. L'API è
   conferma («La sua richiesta è pronta. Dica conferma…») e il messaggio finale
   comunica soltanto il numero di ticket e «Sarà contattato al più presto».
 - **«Salta»**: su qualsiasi domanda di dati (problematica, nome, società,
-  indirizzo, email) il chiamante può dire *salta*. Il campo assume il valore
+  indirizzo) il chiamante può dire *salta*. Il campo assume il valore
   predefinito (`Non specificata`, `Non fornito`, vuoto per i campi facoltativi).
   Il CAP **non viene richiesto**.
 - **Richiesta generica sul prodotto/servizio**: posta solo se il motivo è
