@@ -19,7 +19,8 @@ import {
   renderTransfer,
   renderTransferNow,
   renderWhatsAppReply,
-  parseFinalChoice
+  parseFinalChoice,
+  startAbandonedCallWatcher
 } from './lib/ivr.js';
 import { answerSimulation, startSimulation } from './lib/simulator.js';
 import { requestBaseUrl, validateTwilioRequest } from './lib/signature.js';
@@ -55,15 +56,43 @@ const TERMINAL_CALL_STATUSES = new Set([
   'call.hangup'
 ]);
 
+/**
+ * Apre il ticket di una chiamata che non è arrivata alla conferma finale.
+ * Usato sia dal callback di stato (quando arriva) sia dalla rete di sicurezza
+ * per le sessioni ferme. I dati raccolti fino a quel momento vengono comunque
+ * salvati; un ticket già presente per la stessa chiamata non viene duplicato.
+ */
+async function openInterruptedTicket(session, label) {
+  if (!session || session.ticketId || session.ticketInProgress) return null;
+  if (store.getTicketByCallSid(session.callSid)) return null;
+
+  session.ticketInProgress = true;
+  try {
+    const ticket = await store.createTicket(buildInterruptedTicketData(session));
+    session.ticketId = ticket.id;
+    console.log(`[${label}] ${session.callSid} -> ticket ${ticket.id}`);
+    return ticket;
+  } finally {
+    session.ticketInProgress = false;
+  }
+}
+
 async function createTicketForInterruptedCall(callSid, rawStatus) {
   const status = String(rawStatus || '').toLowerCase();
   if (!callSid || !TERMINAL_CALL_STATUSES.has(status)) return null;
-  if (store.getTicketByCallSid(callSid)) return null;
-  const session = getSession(callSid);
-  if (!session || session.ticketId) return null;
-  const ticket = await store.createTicket(buildInterruptedTicketData(session));
+  return openInterruptedTicket(getSession(callSid), 'Chiamata interrotta');
+}
+
+/**
+ * Se la sessione ha già un ticket (aperto perché la chiamata sembrava finita),
+ * lo aggiorna con i dati completi invece di crearne un secondo.
+ */
+async function ensureTicket(session, buildData) {
+  if (session.ticketId) {
+    return store.completeTicket(session.ticketId, buildData(session));
+  }
+  const ticket = await store.createTicket(buildData(session));
   session.ticketId = ticket.id;
-  console.log(`[Chiamata interrotta] ${callSid} -> ticket ${ticket.id}`);
   return ticket;
 }
 
@@ -411,10 +440,7 @@ app.post(
 
     // Tasto 0 o richiesta vocale di un operatore: inoltro immediato.
     if (result.transfer) {
-      if (!session.ticketId) {
-        const ticket = await store.createTicket(buildTransferTicketData(session));
-        session.ticketId = ticket.id;
-      }
+      await ensureTicket(session, buildTransferTicketData);
       return xml(res, renderTransferNow(session, baseUrl(req)));
     }
 
@@ -422,10 +448,7 @@ app.post(
       return xml(res, renderCurrentStep(session, baseUrl(req), result.error));
     }
 
-    if (!session.ticketId) {
-      const ticket = await store.createTicket(buildTicketData(session));
-      session.ticketId = ticket.id;
-    }
+    await ensureTicket(session, buildTicketData);
 
     return xml(res, renderFinal(session, baseUrl(req)));
   })
@@ -513,10 +536,7 @@ app.post(
     const result = handleTwilioStep(session, { digits, speech });
 
     if (result.transfer) {
-      if (!session.ticketId) {
-        const ticket = await store.createTicket(buildTransferTicketData(session));
-        session.ticketId = ticket.id;
-      }
+      await ensureTicket(session, buildTransferTicketData);
       return xml(
         res,
         renderTransferNow(session, baseUrl(req), config.telnyx.phoneNumber)
@@ -530,10 +550,7 @@ app.post(
       );
     }
 
-    if (!session.ticketId) {
-      const ticket = await store.createTicket(buildTicketData(session));
-      session.ticketId = ticket.id;
-    }
+    await ensureTicket(session, buildTicketData);
 
     return xml(res, renderFinal(session, baseUrl(req), TELNYX_PREFIX));
   })
@@ -595,6 +612,12 @@ app.use((err, req, res, next) => {
     error: status === 500 ? 'Errore interno del server' : err.message
   });
 });
+
+// Rete di sicurezza: apre il ticket anche se la chiamata non termina e il
+// provider non invia alcun callback di stato (es. SIP Domain Twilio).
+startAbandonedCallWatcher((session) =>
+  openInterruptedTicket(session, 'Chiamata non terminata')
+);
 
 app.listen(config.port, () => {
   const status = twilioStatus();

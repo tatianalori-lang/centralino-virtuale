@@ -1,6 +1,13 @@
 import { ORDER, getStep, handleAnswer, DEFAULT_TICKET_PRIORITY } from '../lib/flow.js';
-import { buildTicketData, buildInterruptedTicketData, buildTransferTicketData } from '../lib/ivr.js';
+import {
+  buildTicketData,
+  buildInterruptedTicketData,
+  buildTransferTicketData,
+  createSession,
+  startAbandonedCallWatcher
+} from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
+import * as store from '../lib/store.js';
 
 let fail = 0;
 const check = (label, ok, extra = '') => {
@@ -74,6 +81,32 @@ for (const [label, body, expected] of cases) {
   const got = resolveCallerNumber(body);
   check(`callerId: ${label}`, got === expected, `"${got}" (atteso "${expected}")`);
 }
+
+// Rete di sicurezza: ticket aperto anche senza callback di stato.
+const idle = createSession({ callSid: 'CA-abbandonata', from: '+393331234567', to: 'x' });
+let opened = 0;
+const watcher = startAbandonedCallWatcher(
+  (s) => {
+    opened += 1;
+    s.ticketId = 'TK-test';
+  },
+  { idleMs: 0, intervalMs: 10 }
+);
+await new Promise((r) => setTimeout(r, 60));
+clearInterval(watcher);
+check('watcher: sessione ferma apre il ticket', opened === 1, String(opened));
+
+const withTicket = createSession({ callSid: 'CA-gia-fatto', from: '+393331234567', to: 'x' });
+withTicket.ticketId = 'TK-esistente';
+let duplicated = 0;
+const watcher2 = startAbandonedCallWatcher(
+  () => { duplicated += 1; },
+  { idleMs: 0, intervalMs: 10 }
+);
+await new Promise((r) => setTimeout(r, 60));
+clearInterval(watcher2);
+check('watcher: nessun duplicato se il ticket esiste', duplicated === 0, String(duplicated));
+check('store.completeTicket disponibile', typeof store.completeTicket === 'function');
 
 console.log(fail === 0 ? '\nTUTTO OK' : `\n${fail} ERRORI`);
 process.exit(fail === 0 ? 0 : 1);

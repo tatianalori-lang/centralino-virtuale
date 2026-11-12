@@ -277,6 +277,23 @@ prima i dati del chiamante. Senza essere annunciato, pronunciando
 Il tasto `0` funziona solo in modalità `IVR_INPUT=both`. A fine chiamata, dopo
 il ticket, è offerta a voce la scelta tra «operatore» e «WhatsApp».
 
+### Chiamate non completate
+
+Il ticket viene aperto **anche se il chiamante interrompe la chiamata o non
+arriva alla conferma finale**, con i dati raccolti fino a quel momento. Due
+meccanismi indipendenti:
+
+1. il callback di stato del provider (`/twilio/status`, `/telnyx/status`);
+2. una rete di sicurezza interna: se una sessione resta inattiva per
+   `IVR_ABANDON_SECONDS` (default 30 s) senza aver ancora generato un ticket,
+   il ticket viene aperto comunque. Serve perché il **SIP Domain Twilio** del
+   ponte MessageNet non invia i callback di stato.
+
+Non vengono creati duplicati: se il ticket esiste già e il chiamante riprende
+il dialogo, viene aggiornato con i dati completi (`completeTicket`).
+I ticket di questo tipo hanno `reason: "Chiamata interrotta"` e la voce
+«Chiamata interrotta: ticket aperto con i dati disponibili» nello storico.
+
 ### Dashboard
 
 La dashboard mostra il pannello **Modalità centralino** con i pulsanti **Virtuale** / **Inoltro** e il campo per il numero di destinazione. Le modifiche fatte da CLI sono visibili ricaricando la pagina o premendo **Aggiorna ora**.
@@ -322,6 +339,7 @@ della dashboard si aggiornano automaticamente.
 - `TELNYX_VOICE` / `TWILIO_VOICE`: voce femminile italiana usata da `<Say>` (default `Polly.Bianca-Neural`); lo stesso valore è valido sia su Twilio sia su Telnyx TeXML
 - `TWILIO_LANGUAGE` / `TELNYX_LANGUAGE`: lingua (default `it-IT`)
 - `IVR_INPUT`: `voice` (default, solo voce) oppure `both` (voce + tasti DTMF)
+- `IVR_ABANDON_SECONDS`: inattività (default 30 s, minimo 5) dopo cui una chiamata non completata apre comunque il ticket
 - `TZ`: fuso orario per date e numerazione ticket
 
 **Prova ad ascoltarla:** [`https://centralino.mtitaliaretail.com/ascolta-voce.html`](https://centralino.mtitaliaretail.com/ascolta-voce.html)
