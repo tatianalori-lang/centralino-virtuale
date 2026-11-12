@@ -128,11 +128,16 @@ Il pannello *Modalità centralino* della dashboard mostra il codice pronto e il 
 
 #### Squilli prima della risposta
 
-Il centralino **risponde subito**: il webhook viene servito in ~0,4 s e, con
-`DIAL_TIMEOUT_SECONDS=0`, non viene generato alcun `<Dial>` (nessuno squillo
-aggiunto dal centralino). Se chi chiama `067821202` sente comunque diversi
-squilli, questi arrivano **prima** che la chiamata raggiunga Twilio: sono i
-toni di libero della tratta TIM Webex → numero internazionale USA.
+Il centralino **risponde subito**: il webhook viene servito in ~0,4 s e
+**non genera mai un `<Dial>`**: `dialTimeoutSeconds` è **forzato a 0 nel codice**
+(il valore `DIAL_TIMEOUT_SECONDS` in `.env` viene ignorato). Nessuno squillo
+viene aggiunto dal centralino prima che l'inoltro subentri: il ticket viene
+registrato e al chiamante si comunica solo il ricontatto.
+
+Se chi chiama `067821202` sente comunque diversi squilli, questi arrivano
+**prima** che la chiamata raggiunga il centralino: sono i toni di libero della
+tratta TIM Webex → numero internazionale USA, oppure una deviazione «su non
+risposta» invece che immediata.
 
 Per azzerarli:
 
@@ -473,7 +478,7 @@ Chiamata in entrata (modalità `voice`: solo voce, nessun tasto)
      → problematica (voce)
      → nome (voce)
      → nome della società (voce)
-     → indirizzo postale (voce)
+     → indirizzo (voce)
      → telefono del chiamante: registrato automaticamente dal caller ID
      → riepilogo + conferma (voce)
      → creazione ticket

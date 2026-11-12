@@ -7,6 +7,7 @@ import {
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
+import { config } from '../lib/config.js';
 import {
   scegliTipoTecnico,
   scegliStatoTecnico,
@@ -22,6 +23,8 @@ const check = (label, ok, extra = '') => {
 
 check('ORDER senza urgency', !ORDER.includes('urgency'), ORDER.join(','));
 check('priorità predefinita', DEFAULT_TICKET_PRIORITY === 'media');
+check('zero squilli forzato', config.dialTimeoutSeconds === 0, String(config.dialTimeoutSeconds));
+check('prompt indirizzo senza "postale"', !/postale/.test(getStep('address').prompt), getStep('address').prompt);
 
 // Percorso completo del dialogo.
 const reply = {
@@ -78,6 +81,15 @@ const cases = [
         '<sip:+39067821202@x>;index=1, <sip:+393480025630@x>;index=2'
     },
     '+393480025630'
+  ],
+  [
+    'DID MessageNet non usato come chiamante',
+    {
+      From: own,
+      'SipHeader_X-MTI-Caller': '+39067821202',
+      'SipHeader_X-MTI-Did': '5406639544'
+    },
+    ''
   ],
   ['From normale', { From: '+393331234567' }, '+393331234567'],
   ['nessun dato', { CallSid: 'CA1' }, '']
