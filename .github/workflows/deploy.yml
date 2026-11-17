@@ -7,17 +7,31 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      DASHBOARD_USER: ${{ secrets.DASHBOARD_USER }}
+      DASHBOARD_PASS: ${{ secrets.DASHBOARD_PASS }}
     steps:
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
+        envs: DASHBOARD_USER,DASHBOARD_PASS
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          envs: DASHBOARD_USER,DASHBOARD_PASS
           script: |
             cd /opt/centralino
             git fetch origin main
             git reset --hard origin/main
             npm ci --omit=dev
+            # Aggiorna le credenziali dashboard nel .env (solo se configurate)
+            if [ -n "$DASHBOARD_USER" ]; then
+              sed -i '/^DASHBOARD_USER=/d' .env
+              echo "DASHBOARD_USER=$DASHBOARD_USER" >> .env
+            fi
+            if [ -n "$DASHBOARD_PASS" ]; then
+              sed -i '/^DASHBOARD_PASS=/d' .env
+              echo "DASHBOARD_PASS=$DASHBOARD_PASS" >> .env
+            fi
             systemctl restart centralino
             echo "Deploy completato"
