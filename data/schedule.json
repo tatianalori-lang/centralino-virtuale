@@ -1,0 +1,41 @@
+{
+  "enabled": true,
+  "timezone": "Europe/Rome",
+  "slots": [
+    {
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "start": "13:00",
+      "end": "14:30",
+      "mode": "inoltro"
+    },
+    {
+      "days": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "start": "17:00",
+      "end": "08:30",
+      "mode": "inoltro",
+      "nextDay": true
+    },
+    {
+      "days": [
+        6
+      ],
+      "start": "13:00",
+      "end": "08:30",
+      "mode": "inoltro",
+      "endDayOffset": 2
+    }
+  ],
+  "defaultMode": "virtuale"
+}

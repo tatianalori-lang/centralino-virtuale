@@ -77,6 +77,47 @@
           </div>
         </section>
 
+        <section class="schedule-panel" id="schedulePanel" aria-label="Programmazione oraria">
+          <div class="schedule-info">
+            <div class="schedule-title">Programmazione oraria</div>
+            <div class="schedule-desc" id="scheduleDesc">Caricamento…</div>
+          </div>
+          <div class="schedule-controls">
+            <label class="switch">
+              <input type="checkbox" id="scheduleEnabled" />
+              Attiva programmazione
+            </label>
+            <select id="scheduleDefaultMode" aria-label="Modalità predefinita">
+              <option value="virtuale">Virtuale (default)</option>
+              <option value="inoltro">Inoltro (default)</option>
+            </select>
+            <button class="btn btn-ghost" id="scheduleSave" type="button">Salva programma</button>
+          </div>
+          <div id="scheduleSlots" class="schedule-slots"></div>
+          <div class="schedule-add">
+            <select id="slotDays" multiple size="4" aria-label="Giorni">
+              <option value="1">Lunedì</option>
+              <option value="2">Martedì</option>
+              <option value="3">Mercoledì</option>
+              <option value="4">Giovedì</option>
+              <option value="5">Venerdì</option>
+              <option value="6">Sabato</option>
+              <option value="0">Domenica</option>
+            </select>
+            <input id="slotStart" type="time" value="13:00" />
+            <input id="slotEnd" type="time" value="14:30" />
+            <select id="slotMode" aria-label="Modalità">
+              <option value="inoltro">Inoltro</option>
+              <option value="virtuale">Virtuale</option>
+            </select>
+            <label class="switch">
+              <input type="checkbox" id="slotNextDay" />
+              Giorno successivo
+            </label>
+            <button class="btn btn-ghost" id="slotAdd" type="button">Aggiungi fascia</button>
+          </div>
+        </section>
+
         <section class="stats" id="stats" aria-label="Statistiche"></section>
 
         <section class="filters" aria-label="Filtri">

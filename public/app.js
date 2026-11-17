@@ -7,7 +7,8 @@ const state = {
   autoRefresh: true,
   timer: null,
   twilio: { phoneNumber: '', publicBaseUrl: '' },
-  forward: { mode: 'virtuale', enabled: false, number: '', centralinoNumber: '' }
+  forward: { mode: 'virtuale', enabled: false, number: '', centralinoNumber: '' },
+  schedule: { enabled: false, slots: [], defaultMode: 'virtuale', timezone: 'Europe/Rome' }
 };
 
 const $ = (selector) => document.querySelector(selector);
@@ -272,6 +273,106 @@ async function saveForwardNumber() {
   } catch (error) {
     toast(error.message, true);
   }
+}
+
+const DAY_NAMES = {
+  0: 'Dom',
+  1: 'Lun',
+  2: 'Mar',
+  3: 'Mer',
+  4: 'Gio',
+  5: 'Ven',
+  6: 'Sab'
+};
+
+async function loadSchedule() {
+  try {
+    state.schedule = await api('/api/schedule');
+    renderSchedule();
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function renderSchedule() {
+  const s = state.schedule || {};
+  $('#scheduleEnabled').checked = Boolean(s.enabled);
+  $('#scheduleDefaultMode').value = s.defaultMode || 'virtuale';
+  $('#scheduleDesc').textContent = s.enabled
+    ? `Programmazione attiva · default: ${s.defaultMode || 'virtuale'}`
+    : 'Programmazione disattivata · usa il pulsante per attivarla';
+
+  const container = $('#scheduleSlots');
+  const slots = s.slots || [];
+  if (!slots.length) {
+    container.innerHTML = '<p class="muted" style="font-size:13px;margin:0">Nessuna fascia configurata.</p>';
+    return;
+  }
+
+  container.innerHTML = slots
+    .map((slot, index) => {
+      const days = (slot.days || [])
+        .map((d) => DAY_NAMES[d] || d)
+        .join(', ');
+      const time = `${slot.start || ''} → ${slot.end || ''}${slot.nextDay ? ' (giorno dopo)' : ''}${slot.endDayOffset ? ` (+${slot.endDayOffset} gg)` : ''}`;
+      return `<div class="schedule-slot">
+        <span class="slot-days">${escapeHtml(days)}</span>
+        <span class="slot-time">${escapeHtml(time)}</span>
+        <span class="slot-mode ${escapeHtml(slot.mode || 'inoltro')}">${escapeHtml(slot.mode || 'inoltro')}</span>
+        <button class="slot-remove" type="button" data-remove-slot="${index}" aria-label="Rimuovi fascia">×</button>
+      </div>`;
+    })
+    .join('');
+}
+
+async function saveSchedule() {
+  try {
+    const schedule = await api('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        enabled: $('#scheduleEnabled').checked,
+        defaultMode: $('#scheduleDefaultMode').value,
+        slots: state.schedule.slots || []
+      })
+    });
+    state.schedule = schedule;
+    renderSchedule();
+    toast('Programma orario salvato');
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
+
+function addSlot() {
+  const daysSelect = $('#slotDays');
+  const selectedDays = Array.from(daysSelect.selectedOptions).map((o) => Number(o.value));
+  if (!selectedDays.length) {
+    toast('Seleziona almeno un giorno', true);
+    return;
+  }
+  const slot = {
+    days: selectedDays,
+    start: $('#slotStart').value || '00:00',
+    end: $('#slotEnd').value || '00:00',
+    mode: $('#slotMode').value || 'inoltro',
+    nextDay: $('#slotNextDay').checked
+  };
+  if (!$('#slotNextDay').checked && $('#slotEnd').value <= $('#slotStart').value) {
+    // Se end <= start e non nextDay, assumiamo giorno successivo
+    slot.nextDay = true;
+  }
+  state.schedule.slots = state.schedule.slots || [];
+  state.schedule.slots.push(slot);
+  renderSchedule();
+  toast('Fascia aggiunta (ricorda di salvare)');
+}
+
+function removeSlot(index) {
+  if (!state.schedule.slots) return;
+  state.schedule.slots.splice(index, 1);
+  renderSchedule();
+  toast('Fascia rimossa (ricorda di salvare)');
 }
 
 function filterQuery() {
@@ -674,6 +775,14 @@ function bindEvents() {
   $('#forwardSave').addEventListener('click', saveForwardNumber);
   $('#copyTimCode').addEventListener('click', copyTimCode);
 
+  $('#scheduleSave').addEventListener('click', saveSchedule);
+  $('#slotAdd').addEventListener('click', addSlot);
+  $('#scheduleSlots').addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-remove-slot]');
+    if (!btn) return;
+    removeSlot(Number(btn.dataset.removeSlot));
+  });
+
   $('#autoRefresh').addEventListener('change', (event) => {
     state.autoRefresh = event.target.checked;
   });
@@ -692,7 +801,7 @@ function bindEvents() {
 async function init() {
   bindEvents();
   try {
-    await Promise.all([loadMeta(), loadTwilioStatus(), loadForward()]);
+    await Promise.all([loadMeta(), loadTwilioStatus(), loadForward(), loadSchedule()]);
     await refresh();
   } catch (error) {
     toast(error.message, true);

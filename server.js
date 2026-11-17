@@ -28,6 +28,9 @@ import { validateTelnyxRequest } from './lib/telnyxSignature.js';
 import { mailStatus } from './lib/mailer.js';
 import { sendTicketWhatsApp, whatsappStatus } from './lib/whatsapp.js';
 import { apriIntervento, status as interventiStatus } from './lib/interventi.js';
+import { webexStatus } from './lib/webex.js';
+import { scheduleWebexCallerRecovery } from './lib/webexRecovery.js';
+import { loadSchedule, saveSchedule, computeDesiredMode, startScheduler } from './lib/schedule.js';
 
 const TELNYX_PREFIX = '/telnyx';
 
@@ -71,6 +74,11 @@ async function openInterruptedTicket(session, label) {
     const ticket = await store.createTicket(buildInterruptedTicketData(session));
     session.ticketId = ticket.id;
     console.log(`[${label}] ${session.callSid} -> ticket ${ticket.id}`);
+    scheduleWebexCallerRecovery({
+      callSid: session.callSid,
+      ticketId: ticket.id,
+      startedAt: session.createdAt
+    });
     return ticket;
   } finally {
     session.ticketInProgress = false;
@@ -192,6 +200,10 @@ app.get('/api/mail/status', (req, res) => {
   res.json(mailStatus());
 });
 
+app.get('/api/webex/status', (req, res) => {
+  res.json(webexStatus());
+});
+
 app.get('/api/inoltro', (req, res) => {
   res.json(store.getForwardSettings());
 });
@@ -254,6 +266,32 @@ app.post(
 // Collegamento ticket -> intervento tecnico (Gestione Interventi / OSM)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Programmazione oraria del centralino
+// ---------------------------------------------------------------------------
+app.get('/api/schedule', (req, res) => {
+  res.json(loadSchedule());
+});
+
+app.post(
+  '/api/schedule',
+  asyncRoute(async (req, res) => {
+    const { enabled, slots, defaultMode, timezone } = req.body || {};
+    const schedule = await saveSchedule({
+      enabled: enabled !== undefined ? Boolean(enabled) : undefined,
+      slots: slots !== undefined ? slots : undefined,
+      defaultMode: defaultMode !== undefined ? defaultMode : undefined,
+      timezone: timezone !== undefined ? timezone : undefined
+    });
+    // Applica subito la modalità desiderata
+    const desired = computeDesiredMode(schedule);
+    if (desired && desired !== (store.getForwardSettings().enabled ? 'inoltro' : 'virtuale')) {
+      await store.updateForwardSettings({ enabled: desired === 'inoltro' });
+    }
+    return res.json(schedule);
+  })
+);
+
 app.get('/api/interventi/status', (req, res) => {
   res.json(interventiStatus());
 });
@@ -293,6 +331,24 @@ app.post(
       console.error(`[Interventi] ${ticket.id}: ${err.message}`);
       return res.status(502).json({ error: `Errore integrazione interventi: ${err.message}` });
     }
+  })
+);
+
+app.post(
+  '/api/tickets/:id/recover-caller',
+  asyncRoute(async (req, res) => {
+    const ticket = store.getTicket(req.params.id);
+    if (!ticket) return res.status(404).json({ error: 'Ticket non trovato' });
+    const startedAt = ticket.call?.startedAt || ticket.createdAt;
+    const phone = await (await import('./lib/webex.js')).findOriginalCaller({
+      around: new Date(startedAt),
+      calledNumber: config.webex.calledNumber
+    });
+    if (!phone) {
+      return res.status(404).json({ error: 'Numero non recuperato dal CDR Webex' });
+    }
+    const updated = await store.updateCallerPhone(ticket.id, phone);
+    return res.json({ ok: true, phone, ticket: updated });
   })
 );
 
@@ -405,7 +461,7 @@ app.post(
     // Modalità inoltro diretto: tutte le chiamate vanno al centralino.
     if (forward.enabled && forward.number) {
       if (!store.getTicketByCallSid(CallSid)) {
-        await store.createTicket({
+        const ticket = await store.createTicket({
           callerName: 'Non fornito',
           phone: From,
           from: From,
@@ -414,7 +470,12 @@ app.post(
           issue: 'Chiamata inoltrata direttamente al centralino.',
           priority: 'media',
           source: 'inoltro',
-          call: { sid: CallSid, from: From, to: To }
+          call: { sid: CallSid, from: From, to: To, startedAt: Date.now() }
+        });
+        scheduleWebexCallerRecovery({
+          callSid: CallSid,
+          ticketId: ticket.id,
+          startedAt: Date.now()
         });
       }
       return xml(res, renderDirectForward(forward.number));
@@ -440,7 +501,14 @@ app.post(
 
     // Tasto 0 o richiesta vocale di un operatore: inoltro immediato.
     if (result.transfer) {
-      await ensureTicket(session, buildTransferTicketData);
+      const t = await ensureTicket(session, buildTransferTicketData);
+      if (t) {
+        scheduleWebexCallerRecovery({
+          callSid: session.callSid,
+          ticketId: t.id,
+          startedAt: session.createdAt
+        });
+      }
       return xml(res, renderTransferNow(session, baseUrl(req)));
     }
 
@@ -448,7 +516,14 @@ app.post(
       return xml(res, renderCurrentStep(session, baseUrl(req), result.error));
     }
 
-    await ensureTicket(session, buildTicketData);
+    const ticket = await ensureTicket(session, buildTicketData);
+    if (ticket) {
+      scheduleWebexCallerRecovery({
+        callSid: session.callSid,
+        ticketId: ticket.id,
+        startedAt: session.createdAt
+      });
+    }
 
     return xml(res, renderFinal(session, baseUrl(req)));
   })
@@ -502,7 +577,7 @@ app.post(
 
     if (forward.enabled && forward.number) {
       if (!store.getTicketByCallSid(CallSid)) {
-        await store.createTicket({
+        const ticket = await store.createTicket({
           callerName: 'Non fornito',
           phone: From,
           from: From,
@@ -511,7 +586,12 @@ app.post(
           issue: 'Chiamata inoltrata direttamente al centralino.',
           priority: 'media',
           source: 'inoltro',
-          call: { sid: CallSid, from: From, to: To }
+          call: { sid: CallSid, from: From, to: To, startedAt: Date.now() }
+        });
+        scheduleWebexCallerRecovery({
+          callSid: CallSid,
+          ticketId: ticket.id,
+          startedAt: Date.now()
         });
       }
       return xml(
@@ -536,7 +616,14 @@ app.post(
     const result = handleTwilioStep(session, { digits, speech });
 
     if (result.transfer) {
-      await ensureTicket(session, buildTransferTicketData);
+      const t = await ensureTicket(session, buildTransferTicketData);
+      if (t) {
+        scheduleWebexCallerRecovery({
+          callSid: session.callSid,
+          ticketId: t.id,
+          startedAt: session.createdAt
+        });
+      }
       return xml(
         res,
         renderTransferNow(session, baseUrl(req), config.telnyx.phoneNumber)
@@ -550,7 +637,14 @@ app.post(
       );
     }
 
-    await ensureTicket(session, buildTicketData);
+    const t = await ensureTicket(session, buildTicketData);
+    if (t) {
+      scheduleWebexCallerRecovery({
+        callSid: session.callSid,
+        ticketId: t.id,
+        startedAt: session.createdAt
+      });
+    }
 
     return xml(res, renderFinal(session, baseUrl(req), TELNYX_PREFIX));
   })
@@ -618,6 +712,11 @@ app.use((err, req, res, next) => {
 startAbandonedCallWatcher((session) =>
   openInterruptedTicket(session, 'Chiamata non terminata')
 );
+
+// Programmazione oraria: cambia modalità automaticamente in base alle fasce.
+startScheduler((mode) => {
+  console.log(`[Schedule] modalità attiva: ${mode}`);
+});
 
 app.listen(config.port, () => {
   const status = twilioStatus();
