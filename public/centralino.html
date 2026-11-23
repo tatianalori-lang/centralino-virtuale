@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Centralino VoIP &amp; Orari · Centralino Virtuale</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">CV</div>
+          <div>
+            <strong>Centralino</strong>
+            <span>Virtuale</span>
+          </div>
+        </div>
+
+        <nav>
+          <a class="nav-item" href="/">▦ Dashboard Ticket</a>
+          <a class="nav-item active" href="/centralino.html">⚙ Centralino &amp; Orari</a>
+          <a class="nav-item" href="/prova.html">☎ Prova il centralino</a>
+          <a class="nav-item" href="/api/export.csv">⤓ Esporta CSV</a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div id="voipPill" class="status-pill">Verifica stato VoIP…</div>
+          <p class="muted" style="margin: 10px 0 0">Asterisk · Yealink W76P (101 / 102)</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1>Regole Centralino VoIP &amp; Fasce Orarie</h1>
+            <p class="muted" id="pbxSubtitle">Caricamento configurazione…</p>
+          </div>
+          <div class="topbar-actions">
+            <button class="btn btn-ghost" id="reloadAllBtn" type="button">Aggiorna ora</button>
+            <a class="btn btn-primary" href="/">← Torna ai Ticket</a>
+          </div>
+        </header>
+
+        <section class="status-grid" aria-label="Stato attuale">
+          <div class="status-card">
+            <div class="label">Modalità attiva</div>
+            <div class="val" id="statMode">—</div>
+            <div class="hint" id="statModeHint">—</div>
+          </div>
+          <div class="status-card">
+            <div class="label">Ordine risposta VoIP</div>
+            <div class="val" id="statStrategy">—</div>
+            <div class="hint" id="statStrategyHint">—</div>
+          </div>
+          <div class="status-card">
+            <div class="label">Destinazione inoltro</div>
+            <div class="val" id="statTarget">—</div>
+            <div class="hint">Interni 100 / 101 / 102 o numero esterno</div>
+          </div>
+          <div class="status-card">
+            <div class="label">Bridge Asterisk / Twilio</div>
+            <div class="val" id="statVoip">—</div>
+            <div class="hint" id="statVoipHint">—</div>
+          </div>
+        </section>
+
+        <div class="pbx-grid">
+          <section class="pbx-card" aria-label="Modalità e ordine risposta">
+            <h2>1. Modalità &amp; Ordine di risposta</h2>
+            <p class="pbx-sub">
+              Scegli subito se le chiamate passano dal Centralino Virtuale o vanno in inoltro diretto.
+            </p>
+
+            <div class="mode-switch" role="group" aria-label="Modalità centralino">
+              <button class="mode-btn" id="pbxModeVirtuale" type="button">Centralino Virtuale</button>
+              <button class="mode-btn" id="pbxModeInoltro" type="button">Inoltro diretto a 067821202</button>
+            </div>
+
+            <div class="strategy-grid" role="group" aria-label="Ordine risposta VoIP">
+              <button class="strategy-card" id="stratIvrFirst" type="button">
+                <strong>Prima inoltro a Centralino Virtuale, poi interni 101/102</strong>
+                <span>Risponde sempre prima il Centralino Virtuale per raccogliere i dati; i Yealink 101/102 squillano su richiesta "operatore" o in Inoltro diretto.</span>
+              </button>
+              <button class="strategy-card" id="stratVoipFirst" type="button">
+                <strong>Prima interni 101/102, poi inoltro a Centralino Virtuale</strong>
+                <span>Squillano subito entrambi i Yealink 101/102; se nessuno risponde entro il timeout parte il Centralino Virtuale e apre il ticket.</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="pbx-card" aria-label="Destinazione inoltro e interni">
+            <h2>2. Destinazione Inoltro &amp; Interni Yealink</h2>
+            <p class="pbx-sub">
+              Seleziona quali telefoni far squillare su richiesta operatore o in modalità Inoltro diretto.
+            </p>
+
+            <div class="preset-row">
+              <button class="chip-btn" type="button" data-target="100">100 · Entrambi i Yealink (101+102)</button>
+              <button class="chip-btn" type="button" data-target="101">101 · Solo Yealink 1</button>
+              <button class="chip-btn" type="button" data-target="102">102 · Solo Yealink 2</button>
+              <button class="chip-btn" type="button" data-target="+39067821202">06 782 1202 · Fisso TIM</button>
+            </div>
+
+            <div class="forward-controls">
+              <input
+                id="pbxForwardNumber"
+                type="text"
+                placeholder="100, 101, 102 oppure +39..."
+                autocomplete="off"
+              />
+              <button class="btn btn-primary" id="pbxSaveTarget" type="button">
+                Salva destinazione
+              </button>
+            </div>
+
+            <div class="forward-hint" style="margin-top: 14px">
+              <div class="forward-hint-text">
+                <strong>Deviazione TIM dalla linea fissa</strong>
+                <span>Attiva su fisso con <code id="pbxTimCode">…</code> · Disattiva con <code>#21#</code></span>
+                <span class="forward-hint-alt" id="pbxTimAlt"></span>
+              </div>
+              <button class="btn btn-ghost" id="pbxCopyTim" type="button">Copia codice</button>
+            </div>
+          </section>
+
+          <section class="pbx-card full" aria-label="Programmazione oraria settimanale">
+            <h2>3. Programmazione Oraria Automatica</h2>
+            <p class="pbx-sub" id="pbxScheduleDesc">
+              Imposta le fasce orarie in cui il centralino passa automaticamente tra Centralino Virtuale e Inoltro diretto.
+            </p>
+
+            <div class="schedule-controls">
+              <label class="switch">
+                <input type="checkbox" id="pbxScheduleEnabled" />
+                Attiva programmazione automatica
+              </label>
+              <select id="pbxScheduleDefaultMode" aria-label="Modalità fuori fascia">
+                <option value="virtuale">Fuori fascia: Centralino Virtuale (default)</option>
+                <option value="inoltro">Fuori fascia: Inoltro diretto (default)</option>
+              </select>
+              <button class="btn btn-primary" id="pbxScheduleSave" type="button">
+                Salva programma orario
+              </button>
+            </div>
+
+            <div class="preset-row" aria-label="Aggiungi fasce rapide">
+              <button class="chip-btn" type="button" id="presetLunch">+ Pausa pranzo Lun–Ven (13:00–14:30)</button>
+              <button class="chip-btn" type="button" id="presetEvening">+ Sera/Notte Lun–Ven (17:00–08:30)</button>
+              <button class="chip-btn" type="button" id="presetWeekend">+ Weekend (Sab 13:00–Lun 08:30)</button>
+            </div>
+
+            <div id="pbxScheduleSlots" class="schedule-slots"></div>
+
+            <div class="schedule-add">
+              <div class="day-pills" id="pbxDayPills" role="group" aria-label="Giorni della settimana">
+                <button class="day-pill active" type="button" data-day="1">Lun</button>
+                <button class="day-pill active" type="button" data-day="2">Mar</button>
+                <button class="day-pill active" type="button" data-day="3">Mer</button>
+                <button class="day-pill active" type="button" data-day="4">Gio</button>
+                <button class="day-pill active" type="button" data-day="5">Ven</button>
+                <button class="day-pill" type="button" data-day="6">Sab</button>
+                <button class="day-pill" type="button" data-day="0">Dom</button>
+              </div>
+              <label class="muted" style="font-size: 12px">Dalle <input id="pbxSlotStart" type="time" value="09:00" /></label>
+              <label class="muted" style="font-size: 12px">Alle <input id="pbxSlotEnd" type="time" value="18:00" /></label>
+              <select id="pbxSlotMode" aria-label="Modalità fascia">
+                <option value="inoltro">Inoltro diretto</option>
+                <option value="virtuale">Centralino Virtuale</option>
+              </select>
+              <label class="switch">
+                <input type="checkbox" id="pbxSlotNextDay" />
+                Fino al giorno successivo
+              </label>
+              <button class="btn btn-ghost" id="pbxSlotAdd" type="button">+ Aggiungi fascia</button>
+            </div>
+          </section>
+        </div>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/centralino.js" type="module"></script>
+  </body>
+</html>

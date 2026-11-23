@@ -1,14 +1,27 @@
 import fs from 'node:fs';
+import path from 'node:path';
 
-// Genera la configurazione Asterisk per il ponte SIP MessageNet -> Twilio.
+// Genera la configurazione Asterisk completa per il centralino VoIP:
+// - Ponte SIP MessageNet <-> Twilio SIP Domain (IVR)
+// - Interni Yealink W76P (101, 102) e gruppo di squillo 100
+// - Chiamate tra interni, trasferimenti e chiamate in uscita via MessageNet
+//
 // Eseguire come root sul VPS: node /opt/centralino/scripts/genera-config-asterisk.mjs
-// Le credenziali vengono lette da /opt/centralino/.env (permessi 600).
+// Per testare in locale senza scrivere su /etc/asterisk: aggiungere --dry-run
 
-const ENV_FILE = '/opt/centralino/.env';
+const dryRun = process.argv.includes('--dry-run');
+const ENV_FILE =
+  process.env.ENV_FILE ||
+  (fs.existsSync('/opt/centralino/.env') ? '/opt/centralino/.env' : '.env');
 const AST_DIR = '/etc/asterisk';
-const PUBLIC_IP = '91.99.150.162';
+const PUBLIC_IP = process.env.VPS_PUBLIC_IP || '91.99.150.162';
 const MESSAGENET_SBC = '109.233.129.0/24';
 const TWILIO_DOMAIN = 'mtitalia-centralino.sip.twilio.com';
+
+if (!fs.existsSync(ENV_FILE)) {
+  console.error(`File env non trovato: ${ENV_FILE}`);
+  process.exit(1);
+}
 
 const env = {};
 for (const line of fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/)) {
@@ -19,8 +32,28 @@ for (const line of fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/)) {
 const uri = env.MESSAGENET_SIP_URI;
 const password = env.MESSAGENET_SIP_PASSWORD;
 const domain = env.MESSAGENET_SIP_DOMAIN || 'sip.messagenet.it';
+const ext101Pass = env.ASTERISK_EXT_101_PASSWORD || '';
+const ext102Pass = env.ASTERISK_EXT_102_PASSWORD || '';
+const twilioBridgeUser = env.VOIP_SIP_USER || 'twilio-bridge';
+const twilioBridgePass = env.VOIP_SIP_PASSWORD || '';
+const bridgeToken = env.VOIP_BRIDGE_TOKEN || '';
+const dialTimeout = Math.max(5, Math.min(60, Number(env.VOIP_DIAL_TIMEOUT || 25)));
+const outboundCli = (
+  env.MESSAGENET_OUTBOUND_CLI ||
+  env.MESSAGENET_NUMBER ||
+  uri ||
+  ''
+).replace(/^\+/, '');
+
 if (!uri || !password) {
-  console.error('Credenziali SIP MessageNet mancanti in .env');
+  console.error('Credenziali SIP MessageNet mancanti in .env (MESSAGENET_SIP_URI / MESSAGENET_SIP_PASSWORD)');
+  process.exit(1);
+}
+
+if (!dryRun && (!ext101Pass || !ext102Pass || !twilioBridgePass || !bridgeToken)) {
+  console.error(
+    'Password VoIP mancanti in .env (ASTERISK_EXT_101_PASSWORD, ASTERISK_EXT_102_PASSWORD, VOIP_SIP_PASSWORD, VOIP_BRIDGE_TOKEN). Esegui prima deploy/setup-voip-vps.sh.'
+  );
   process.exit(1);
 }
 
@@ -30,11 +63,47 @@ function backup(file) {
   }
 }
 
+function buildExtension(ext, pass, label) {
+  return `
+[${ext}]
+type=endpoint
+transport=transport-udp
+context=from-internal
+disallow=all
+allow=alaw
+allow=ulaw
+allow=g722
+auth=auth-${ext}
+aors=${ext}
+direct_media=no
+force_rport=yes
+rewrite_contact=yes
+rtp_symmetric=yes
+ice_support=no
+callerid="${label}" <${ext}>
+dtmf_mode=rfc4733
+
+[auth-${ext}]
+type=auth
+auth_type=userpass
+username=${ext}
+password=${pass || 'CHANGE_ME'}
+
+[${ext}]
+type=aor
+max_contacts=2
+remove_existing=yes
+qualify_frequency=30
+`;
+}
+
+// Nota: in PJSIP l'AOR dell'endpoint deve chiamarsi come indicato in `aors=...`.
+// Usiamo sezioni dedicate `[101]` per endpoint e `[aor-101]` per AOR.
 const pjsip = `[global]
 type=global
 user_agent=CentralinoMTItalia
-; Mantiene vivo il binding UDP verso MessageNet (evita registrazioni stale).
 keep_alive_interval=30
+endpoint_identifier_order=ip,header,username,auth_username,anonymous
 
 [transport-udp]
 type=transport
@@ -44,7 +113,9 @@ external_media_address=${PUBLIC_IP}
 external_signaling_address=${PUBLIC_IP}
 local_net=127.0.0.1/32
 
-; Registrazione verso MessageNet (numero +39 06 8635 8716)
+; ---------------------------------------------------------------------------
+; Tronco SIP MessageNet (+39 06 8635 8716) - ingresso e uscita
+; ---------------------------------------------------------------------------
 [auth-messagenet]
 type=auth
 auth_type=userpass
@@ -58,8 +129,6 @@ client_uri=sip:${uri}@${domain}
 server_uri=sip:${domain}
 contact_user=${uri}
 outbound_auth=auth-messagenet
-; 600 s (invece di 3600): Asterisk rinnova il REGISTER ogni ~5 minuti,
-; così MessageNet non scarta il contatto come inattivo.
 expiration=600
 retry_interval=60
 forbidden_retry_interval=300
@@ -67,6 +136,7 @@ max_retries=0
 
 [aor-messagenet]
 type=aor
+contact=sip:${domain}
 max_contacts=1
 remove_existing=yes
 
@@ -84,6 +154,7 @@ force_rport=yes
 rewrite_contact=yes
 rtp_symmetric=yes
 ice_support=no
+from_user=${uri}
 from_domain=${domain}
 trust_id_inbound=yes
 
@@ -92,7 +163,9 @@ type=identify
 endpoint=endpoint-messagenet
 match=${MESSAGENET_SBC}
 
-; Uscita verso il SIP Domain Twilio (autorizzato via IP ACL)
+; ---------------------------------------------------------------------------
+; Uscita verso il SIP Domain Twilio (IVR)
+; ---------------------------------------------------------------------------
 [aor-twilio]
 type=aor
 contact=sip:centralino@${TWILIO_DOMAIN}
@@ -113,28 +186,58 @@ rtp_symmetric=yes
 ice_support=no
 from_domain=${TWILIO_DOMAIN}
 send_pai=yes
+
+; ---------------------------------------------------------------------------
+; Ingresso da Twilio (<Dial><Sip>) verso interni VoIP 101 / 102
+; Identificato dall'header segreto X-MTI-Bridge + digest auth.
+; ---------------------------------------------------------------------------
+[auth-twilio-in]
+type=auth
+auth_type=userpass
+username=${twilioBridgeUser}
+password=${twilioBridgePass || 'CHANGE_ME'}
+
+[endpoint-twilio-in]
+type=endpoint
+transport=transport-udp
+context=from-twilio
+disallow=all
+allow=ulaw
+allow=alaw
+auth=auth-twilio-in
+direct_media=no
+force_rport=yes
+rewrite_contact=yes
+rtp_symmetric=yes
+ice_support=no
+trust_id_inbound=yes
+
+[identify-twilio-in]
+type=identify
+endpoint=endpoint-twilio-in
+match_header=X-MTI-Bridge: ${bridgeToken || 'CHANGE_ME'}
+
+; ---------------------------------------------------------------------------
+; Interni VoIP Yealink W76P (101, 102)
+; ---------------------------------------------------------------------------
+${buildExtension('101', ext101Pass, 'Postazione 101')}
+${buildExtension('102', ext102Pass, 'Postazione 102')}
 `;
 
 const extensions = `[general]
 static=yes
 writeprotect=no
 
-; Chiamata in ingresso da MessageNet: rispondiamo SUBITO (zero squilli)
-; e la inoltriamo al SIP Domain Twilio che esegue il nostro IVR.
-; Sulle deviazioni il From SIP puo' contenere il numero del centralino:
-; passiamo comunque il caller ID noto ad Asterisk negli header X-MTI-*,
-; che Twilio espone al webhook come SipHeader_X-MTI-* (vedi lib/callerId.js).
+; ---------------------------------------------------------------------------
+; Ingresso da MessageNet -> IVR Twilio (risposta immediata zero squilli)
+; ---------------------------------------------------------------------------
 [from-messagenet]
 exten => h,1,NoOp(Fine chiamata MessageNet)
  same => n,Hangup()
-; PRIMA COSA: 200 OK a MessageNet. Nessuna operazione (lettura header,
-; variabili, log) deve ritardare la risposta: ogni ritardo si traduce in
-; squilli sentiti dal chiamante sulla tratta TIM deviata.
 exten => _.,1,Answer()
  same => n,NoOp(MessageNet IN from=\${CALLERID(num)} to=\${EXTEN} did=\${CALLERID(dnid)})
  same => n,Set(__MTI_CALLER=\${CALLERID(num)})
  same => n,Set(__MTI_DID=\${CALLERID(dnid)})
-; Sulle deviazioni l'identita' originale puo' stare in questi header.
  same => n,Set(__MTI_PAI=\${PJSIP_HEADER(read,P-Asserted-Identity)})
  same => n,Set(__MTI_RPID=\${PJSIP_HEADER(read,Remote-Party-ID)})
  same => n,Set(__MTI_DIV=\${PJSIP_HEADER(read,Diversion)})
@@ -142,7 +245,6 @@ exten => _.,1,Answer()
  same => n,Dial(PJSIP/endpoint-twilio,180,b(mti-headers^s^1))
  same => n,Hangup()
 
-; Predial handler: header aggiunti sul canale uscente verso Twilio.
 [mti-headers]
 exten => s,1,Set(PJSIP_HEADER(add,X-MTI-Caller)=\${MTI_CALLER})
  same => n,Set(PJSIP_HEADER(add,X-MTI-Did)=\${MTI_DID})
@@ -152,9 +254,97 @@ exten => s,1,Set(PJSIP_HEADER(add,X-MTI-Caller)=\${MTI_CALLER})
  same => n,Set(PJSIP_HEADER(add,X-MTI-History)=\${MTI_HIST})
  same => n,Return()
 
+; ---------------------------------------------------------------------------
+; Ingresso da Twilio (<Dial><Sip>) -> squillo sugli interni VoIP
+; NON chiamare Answer() prima di Dial(), così Twilio riceve 180 Ringing
+; e gestisce correttamente il timeout di mancata risposta.
+; ---------------------------------------------------------------------------
 [from-twilio]
-exten => _.,1,NoOp(Ingresso inatteso da Twilio)
+exten => 100,1,NoOp(Trasferimento IVR verso gruppo 100 from=\${CALLERID(num)})
+ same => n,Gosub(apply-mti-caller,s,1)
+ same => n,Dial(PJSIP/101&PJSIP/102,${dialTimeout},t)
  same => n,Hangup()
+
+exten => 101,1,NoOp(Trasferimento IVR verso interno 101 from=\${CALLERID(num)})
+ same => n,Gosub(apply-mti-caller,s,1)
+ same => n,Dial(PJSIP/101,${dialTimeout},t)
+ same => n,Hangup()
+
+exten => 102,1,NoOp(Trasferimento IVR verso interno 102 from=\${CALLERID(num)})
+ same => n,Gosub(apply-mti-caller,s,1)
+ same => n,Dial(PJSIP/102,${dialTimeout},t)
+ same => n,Hangup()
+
+exten => _.,1,NoOp(Destinazione Twilio non valida: \${EXTEN})
+ same => n,Hangup()
+
+[apply-mti-caller]
+exten => s,1,Set(MTI_X_CALLER=\${PJSIP_HEADER(read,X-MTI-Caller)})
+ same => n,GotoIf($["\${MTI_X_CALLER}" = ""]?done)
+ same => n,Set(CALLERID(num)=\${MTI_X_CALLER})
+ same => n,Set(CALLERID(name)=\${MTI_X_CALLER})
+ same => n(done),Return()
+
+; ---------------------------------------------------------------------------
+; Chiamate dagli interni Yealink (101, 102)
+; ---------------------------------------------------------------------------
+[from-internal]
+; Gruppo di chiamata 100 -> squillano entrambi
+exten => 100,1,NoOp(Chiamata interna gruppo 100 da \${CALLERID(num)})
+ same => n,Dial(PJSIP/101&PJSIP/102,30,tT)
+ same => n,Hangup()
+
+; Interni singoli
+exten => 101,1,NoOp(Chiamata interna verso 101 da \${CALLERID(num)})
+ same => n,Dial(PJSIP/101,30,tT)
+ same => n,Hangup()
+
+exten => 102,1,NoOp(Chiamata interna verso 102 da \${CALLERID(num)})
+ same => n,Dial(PJSIP/102,30,tT)
+ same => n,Hangup()
+
+; Emergenza Italia
+exten => _11[2358],1,NoOp(Emergenza \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/\${EXTEN}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+
+; Uscita verso numeri fissi italiani (0...)
+exten => _0[1-9]X.,1,NoOp(Uscita fisso \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/\${EXTEN}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+
+; Uscita verso cellulari italiani (3...)
+exten => _3X.,1,NoOp(Uscita mobile \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/\${EXTEN}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+
+; Uscita internazionale (00...)
+exten => _00X.,1,NoOp(Uscita internazionale \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/\${EXTEN}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+
+; Uscita con prefisso + -> converte + in 00 per MessageNet
+exten => _+X.,1,NoOp(Uscita E.164 \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/00\${EXTEN:1}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+`;
+
+const features = `[general]
+parkext => 700
+parkpos => 701-704
+context => parkedcalls
+transferdigittimeout => 3
+featuredigittimeout => 1500
+
+[featuremap]
+blindxfer => #1
+atxfer => *2
+disconnect => *0
 `;
 
 const rtp = `[general]
@@ -164,17 +354,27 @@ rtpchecksums=no
 strictrtp=no
 `;
 
+if (dryRun) {
+  console.log(`Dry-run OK: letta env da ${ENV_FILE}`);
+  console.log(`  MessageNet URI: ${uri}@${domain} (CLI uscita: ${outboundCli})`);
+  console.log(`  Interni generati: 101, 102, gruppo 100 (timeout ${dialTimeout}s)`);
+  process.exit(0);
+}
+
 for (const [name, content] of [
   ['pjsip.conf', pjsip],
   ['extensions.conf', extensions],
+  ['features.conf', features],
   ['rtp.conf', rtp]
 ]) {
-  const file = `${AST_DIR}/${name}`;
+  const file = path.join(AST_DIR, name);
   backup(file);
   fs.writeFileSync(file, content, 'utf8');
   fs.chmodSync(file, 0o640);
-  try { fs.chownSync(file, fs.statSync(AST_DIR).uid, fs.statSync(AST_DIR).gid); } catch {}
+  try {
+    fs.chownSync(file, fs.statSync(AST_DIR).uid, fs.statSync(AST_DIR).gid);
+  } catch {}
   console.log(`scritto ${file}`);
 }
 
-console.log('Configurazione Asterisk generata.');
+console.log('Configurazione Asterisk VoIP generata.');

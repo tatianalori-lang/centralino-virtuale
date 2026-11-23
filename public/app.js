@@ -223,19 +223,47 @@ async function loadForward() {
 function renderForward() {
   const forward = state.forward || {};
   const isForward = forward.mode === 'inoltro' || forward.enabled;
+  const strategy = forward.voipStrategy === 'voip_first' ? 'voip_first' : 'ivr_first';
 
   $('#forwardPanel').classList.toggle('active', isForward);
   $('#modeVirtuale').classList.toggle('active', !isForward);
   $('#modeInoltro').classList.toggle('active', isForward);
+  $('#modeVirtuale').setAttribute('aria-pressed', String(!isForward));
+  $('#modeInoltro').setAttribute('aria-pressed', String(isForward));
+  $('#voipStrategy').value = strategy;
   $('#forwardNumber').value = forward.number || '';
+
+  const strategyDesc =
+    strategy === 'voip_first'
+      ? 'Squillano prima gli interni 101/102; se non risponde nessuno parte il Centralino Virtuale.'
+      : 'Risponde prima il Centralino Virtuale; gli interni 101/102 squillano su richiesta "operatore".';
 
   $('#forwardDesc').textContent = isForward
     ? `Inoltro diretto attivo verso ${
-        forward.number || 'numero non configurato'
-      }. Le chiamate non passano dall'IVR.`
-    : `IVR attivo. Le chiamate sono gestite dal centralino virtuale. Centralino: ${
+        forward.number || 'interni VoIP 101/102'
+      }. Le chiamate non passano dal Centralino Virtuale.`
+    : `Centralino Virtuale attivo. ${strategyDesc} Centralino: ${
         forward.centralinoNumber || '—'
       }.`;
+}
+
+async function setVoipStrategy(voipStrategy) {
+  try {
+    const forward = await api('/api/modalita', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voipStrategy })
+    });
+    state.forward = forward;
+    renderForward();
+    toast(
+      voipStrategy === 'voip_first'
+        ? 'Ordine: prima interni 101/102, poi inoltro a Centralino Virtuale'
+        : 'Ordine: prima inoltro a Centralino Virtuale, poi interni 101/102'
+    );
+  } catch (error) {
+    toast(error.message, true);
+  }
 }
 
 async function setMode(mode) {
@@ -252,8 +280,8 @@ async function setMode(mode) {
     renderForward();
     toast(
       mode === 'inoltro'
-        ? `Inoltro attivo verso ${forward.number}`
-        : 'Modalità virtuale attiva'
+        ? `Inoltro diretto attivo verso ${forward.number}`
+        : 'Centralino Virtuale attivo'
     );
   } catch (error) {
     toast(error.message, true);
@@ -772,6 +800,7 @@ function bindEvents() {
 
   $('#modeVirtuale').addEventListener('click', () => setMode('virtuale'));
   $('#modeInoltro').addEventListener('click', () => setMode('inoltro'));
+  $('#voipStrategy').addEventListener('change', (event) => setVoipStrategy(event.target.value));
   $('#forwardSave').addEventListener('click', saveForwardNumber);
   $('#copyTimCode').addEventListener('click', copyTimCode);
 

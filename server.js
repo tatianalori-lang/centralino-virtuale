@@ -2,7 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { catalog, config, twilioStatus } from './lib/config.js';
+import { catalog, config, twilioStatus, voipStatus } from './lib/config.js';
 import { resolveCallerNumber } from './lib/callerId.js';
 import * as store from './lib/store.js';
 import {
@@ -13,7 +13,10 @@ import {
   getOrCreateSession,
   getSession,
   handleTwilioStep,
+  isDialAnswered,
   renderCurrentStep,
+  renderDialResult,
+  renderDialVoipFirst,
   renderDirectForward,
   renderFinal,
   renderTransfer,
@@ -28,8 +31,10 @@ import { validateTelnyxRequest } from './lib/telnyxSignature.js';
 import { mailStatus } from './lib/mailer.js';
 import { sendTicketWhatsApp, whatsappStatus } from './lib/whatsapp.js';
 import { apriIntervento, status as interventiStatus } from './lib/interventi.js';
+import { basicAuth, authStatus } from './lib/auth.js';
 import { webexStatus } from './lib/webex.js';
-import { scheduleWebexCallerRecovery } from './lib/webexRecovery.js';
+import { twilioInsightsStatus } from './lib/twilioInsights.js';
+import { scheduleCallerRecovery } from './lib/callerRecovery.js';
 import { loadSchedule, saveSchedule, computeDesiredMode, startScheduler } from './lib/schedule.js';
 
 const TELNYX_PREFIX = '/telnyx';
@@ -74,7 +79,7 @@ async function openInterruptedTicket(session, label) {
     const ticket = await store.createTicket(buildInterruptedTicketData(session));
     session.ticketId = ticket.id;
     console.log(`[${label}] ${session.callSid} -> ticket ${ticket.id}`);
-    scheduleWebexCallerRecovery({
+    scheduleCallerRecovery({
       callSid: session.callSid,
       ticketId: ticket.id,
       startedAt: session.createdAt
@@ -111,6 +116,17 @@ const captureRawBody = (req, res, buf) => {
 };
 app.use(express.urlencoded({ extended: false, verify: captureRawBody }));
 app.use(express.json({ limit: '200kb', verify: captureRawBody }));
+
+// Autenticazione dashboard: protegge le API (eccetto /api/health) e i file statici.
+// I webhook Twilio/Telnyx restano pubblici (non passano da qui).
+app.use('/api', (req, res, next) => {
+  if (req.path === '/health') return next();
+  basicAuth(req, res, next);
+});
+app.use((req, res, next) => {
+  if (req.path.startsWith('/twilio') || req.path.startsWith('/telnyx')) return next();
+  basicAuth(req, res, next);
+});
 
 function asyncRoute(handler) {
   return (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
@@ -153,6 +169,10 @@ function telnyxParams(req) {
 
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, uptime: process.uptime(), now: new Date().toISOString() });
+});
+
+app.get('/api/auth/status', (req, res) => {
+  res.json(authStatus());
 });
 
 app.get('/api/meta', (req, res) => {
@@ -204,6 +224,21 @@ app.get('/api/webex/status', (req, res) => {
   res.json(webexStatus());
 });
 
+app.get('/api/twilio-insights/status', (req, res) => {
+  res.json(twilioInsightsStatus());
+});
+
+app.get('/api/voip/status', (req, res) => {
+  res.json(voipStatus());
+});
+
+function isValidForwardTarget(value) {
+  const cleaned = String(value || '').trim();
+  if (!cleaned) return true;
+  if (/^(?:voip|interni|100|101|102)$/i.test(cleaned)) return true;
+  return cleaned.replace(/\D/g, '').length >= 6;
+}
+
 app.get('/api/inoltro', (req, res) => {
   res.json(store.getForwardSettings());
 });
@@ -213,11 +248,8 @@ app.post(
   asyncRoute(async (req, res) => {
     const { enabled, number } = req.body || {};
 
-    if (number !== undefined) {
-      const cleaned = String(number).trim();
-      if (cleaned && cleaned.replace(/\D/g, '').length < 6) {
-        return res.status(400).json({ error: 'Numero di inoltro non valido' });
-      }
+    if (number !== undefined && !isValidForwardTarget(number)) {
+      return res.status(400).json({ error: 'Numero di inoltro non valido' });
     }
 
     const settings = await store.updateForwardSettings({ enabled, number });
@@ -237,22 +269,24 @@ app.get('/api/modalita', (req, res) => {
 app.post(
   '/api/modalita',
   asyncRoute(async (req, res) => {
-    const { mode, number } = req.body || {};
+    const { mode, number, voipStrategy } = req.body || {};
 
     if (mode !== undefined && !['virtuale', 'inoltro'].includes(mode)) {
       return res.status(400).json({ error: 'Modalità non valida' });
     }
 
-    if (number !== undefined) {
-      const cleaned = String(number).trim();
-      if (cleaned && cleaned.replace(/\D/g, '').length < 6) {
-        return res.status(400).json({ error: 'Numero di inoltro non valido' });
-      }
+    if (voipStrategy !== undefined && !['ivr_first', 'voip_first'].includes(voipStrategy)) {
+      return res.status(400).json({ error: 'Strategia VoIP non valida' });
+    }
+
+    if (number !== undefined && !isValidForwardTarget(number)) {
+      return res.status(400).json({ error: 'Numero di inoltro non valido' });
     }
 
     const settings = await store.updateForwardSettings({
       enabled: mode === undefined ? undefined : mode === 'inoltro',
-      number
+      number,
+      voipStrategy
     });
 
     return res.json({
@@ -270,7 +304,11 @@ app.post(
 // Programmazione oraria del centralino
 // ---------------------------------------------------------------------------
 app.get('/api/schedule', (req, res) => {
-  res.json(loadSchedule());
+  const schedule = loadSchedule();
+  res.json({
+    ...schedule,
+    currentDesiredMode: computeDesiredMode(schedule)
+  });
 });
 
 app.post(
@@ -288,7 +326,10 @@ app.post(
     if (desired && desired !== (store.getForwardSettings().enabled ? 'inoltro' : 'virtuale')) {
       await store.updateForwardSettings({ enabled: desired === 'inoltro' });
     }
-    return res.json(schedule);
+    return res.json({
+      ...schedule,
+      currentDesiredMode: desired
+    });
   })
 );
 
@@ -339,13 +380,26 @@ app.post(
   asyncRoute(async (req, res) => {
     const ticket = store.getTicket(req.params.id);
     if (!ticket) return res.status(404).json({ error: 'Ticket non trovato' });
-    const startedAt = ticket.call?.startedAt || ticket.createdAt;
-    const phone = await (await import('./lib/webex.js')).findOriginalCaller({
-      around: new Date(startedAt),
-      calledNumber: config.webex.calledNumber
-    });
+    const callSid = ticket.call?.sid;
+
+    let phone = '';
+    // 1. Prova Twilio Insights
+    if (callSid && config.twilio.accountSid && config.twilio.authToken) {
+      const { findOriginalCallerFromInsights } = await import('./lib/twilioInsights.js');
+      phone = await findOriginalCallerFromInsights(callSid);
+    }
+    // 2. Se non trovato, prova Webex CDR
+    if (!phone && config.webex.enabled) {
+      const { findOriginalCaller } = await import('./lib/webex.js');
+      const startedAt = ticket.call?.startedAt || ticket.createdAt;
+      phone = await findOriginalCaller({
+        around: new Date(startedAt),
+        calledNumber: config.webex.calledNumber
+      });
+    }
+
     if (!phone) {
-      return res.status(404).json({ error: 'Numero non recuperato dal CDR Webex' });
+      return res.status(404).json({ error: 'Numero non recuperato' });
     }
     const updated = await store.updateCallerPhone(ticket.id, phone);
     return res.json({ ok: true, phone, ticket: updated });
@@ -449,6 +503,24 @@ app.post(
 // Webhook Twilio
 // ---------------------------------------------------------------------------
 
+const pendingVoipCalls = new Map();
+
+function rememberPendingVoipCall(callSid, from, to) {
+  if (!callSid) return;
+  const now = Date.now();
+  for (const [key, item] of pendingVoipCalls.entries()) {
+    if (now - item.createdAt > 10 * 60 * 1000) pendingVoipCalls.delete(key);
+  }
+  pendingVoipCalls.set(callSid, { from: from || '', to: to || '', createdAt: now });
+}
+
+function takePendingVoipCall(callSid) {
+  if (!callSid) return null;
+  const item = pendingVoipCalls.get(callSid) || null;
+  pendingVoipCalls.delete(callSid);
+  return item;
+}
+
 app.post(
   '/twilio/voice',
   validateTwilioRequest,
@@ -472,19 +544,60 @@ app.post(
           source: 'inoltro',
           call: { sid: CallSid, from: From, to: To, startedAt: Date.now() }
         });
-        scheduleWebexCallerRecovery({
+        scheduleCallerRecovery({
           callSid: CallSid,
           ticketId: ticket.id,
           startedAt: Date.now()
         });
       }
-      return xml(res, renderDirectForward(forward.number));
+      return xml(
+        res,
+        renderDirectForward(
+          forward.number,
+          config.twilio.phoneNumber,
+          baseUrl(req),
+          '/twilio',
+          From
+        )
+      );
+    }
+
+    if (
+      forward.voipStrategy === 'voip_first' &&
+      config.voip.transferEnabled &&
+      config.voip.sipUri
+    ) {
+      rememberPendingVoipCall(CallSid, From, To);
+      return xml(
+        res,
+        renderDialVoipFirst({
+          callerId: config.twilio.phoneNumber,
+          callerPhone: From,
+          baseUrl: baseUrl(req),
+          prefix: '/twilio'
+        })
+      );
     }
 
     const session = createSession({ callSid: CallSid, from: From, to: To });
     return xml(res, renderCurrentStep(session, baseUrl(req)));
   })
 );
+
+app.post('/twilio/voice/voip-fallback', validateTwilioRequest, (req, res) => {
+  const { CallSid, To, DialCallStatus } = req.body;
+  const pending = takePendingVoipCall(CallSid);
+  if (isDialAnswered(DialCallStatus)) {
+    return xml(res, '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+  }
+  const From = pending?.from || resolveCallerNumber(req.body);
+  const session = createSession({
+    callSid: CallSid,
+    from: From,
+    to: pending?.to || To
+  });
+  return xml(res, renderCurrentStep(session, baseUrl(req)));
+});
 
 app.post(
   '/twilio/voice/step',
@@ -503,7 +616,7 @@ app.post(
     if (result.transfer) {
       const t = await ensureTicket(session, buildTransferTicketData);
       if (t) {
-        scheduleWebexCallerRecovery({
+        scheduleCallerRecovery({
           callSid: session.callSid,
           ticketId: t.id,
           startedAt: session.createdAt
@@ -518,7 +631,7 @@ app.post(
 
     const ticket = await ensureTicket(session, buildTicketData);
     if (ticket) {
-      scheduleWebexCallerRecovery({
+      scheduleCallerRecovery({
         callSid: session.callSid,
         ticketId: ticket.id,
         startedAt: session.createdAt
@@ -547,9 +660,22 @@ app.post(
       return xml(res, renderWhatsAppReply(result.sent));
     }
 
-    return xml(res, renderTransfer(choice === 'operator'));
+    return xml(
+      res,
+      renderTransfer(
+        choice === 'operator',
+        config.twilio.phoneNumber,
+        baseUrl(req),
+        '/twilio',
+        session?.answers?.phone || session?.from || ''
+      )
+    );
   })
 );
+
+app.post('/twilio/voice/dial-result', validateTwilioRequest, (req, res) => {
+  return xml(res, renderDialResult(req.body?.DialCallStatus));
+});
 
 // Callback di stato delle chiamate (facoltativo, utile per diagnosi).
 app.post(
@@ -588,7 +714,7 @@ app.post(
           source: 'inoltro',
           call: { sid: CallSid, from: From, to: To, startedAt: Date.now() }
         });
-        scheduleWebexCallerRecovery({
+        scheduleCallerRecovery({
           callSid: CallSid,
           ticketId: ticket.id,
           startedAt: Date.now()
@@ -596,7 +722,30 @@ app.post(
       }
       return xml(
         res,
-        renderDirectForward(forward.number, config.telnyx.phoneNumber)
+        renderDirectForward(
+          forward.number,
+          config.telnyx.phoneNumber,
+          baseUrl(req),
+          TELNYX_PREFIX,
+          From
+        )
+      );
+    }
+
+    if (
+      forward.voipStrategy === 'voip_first' &&
+      config.voip.transferEnabled &&
+      config.voip.sipUri
+    ) {
+      rememberPendingVoipCall(CallSid, From, To);
+      return xml(
+        res,
+        renderDialVoipFirst({
+          callerId: config.telnyx.phoneNumber,
+          callerPhone: From,
+          baseUrl: baseUrl(req),
+          prefix: TELNYX_PREFIX
+        })
       );
     }
 
@@ -604,6 +753,21 @@ app.post(
     return xml(res, renderCurrentStep(session, baseUrl(req), undefined, TELNYX_PREFIX));
   })
 );
+
+app.post('/telnyx/voice/voip-fallback', validateTelnyxRequest, (req, res) => {
+  const { CallSid, To } = telnyxParams(req);
+  const pending = takePendingVoipCall(CallSid);
+  if (isDialAnswered(req.body?.DialCallStatus)) {
+    return xml(res, '<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>');
+  }
+  const From = pending?.from || resolveCallerNumber(req.body);
+  const session = createSession({
+    callSid: CallSid,
+    from: From,
+    to: pending?.to || To
+  });
+  return xml(res, renderCurrentStep(session, baseUrl(req), undefined, TELNYX_PREFIX));
+});
 
 app.post(
   '/telnyx/voice/step',
@@ -618,7 +782,7 @@ app.post(
     if (result.transfer) {
       const t = await ensureTicket(session, buildTransferTicketData);
       if (t) {
-        scheduleWebexCallerRecovery({
+        scheduleCallerRecovery({
           callSid: session.callSid,
           ticketId: t.id,
           startedAt: session.createdAt
@@ -626,7 +790,12 @@ app.post(
       }
       return xml(
         res,
-        renderTransferNow(session, baseUrl(req), config.telnyx.phoneNumber)
+        renderTransferNow(
+          session,
+          baseUrl(req),
+          config.telnyx.phoneNumber,
+          TELNYX_PREFIX
+        )
       );
     }
 
@@ -639,7 +808,7 @@ app.post(
 
     const t = await ensureTicket(session, buildTicketData);
     if (t) {
-      scheduleWebexCallerRecovery({
+      scheduleCallerRecovery({
         callSid: session.callSid,
         ticketId: t.id,
         startedAt: session.createdAt
@@ -670,10 +839,20 @@ app.post(
 
     return xml(
       res,
-      renderTransfer(choice === 'operator', config.telnyx.phoneNumber)
+      renderTransfer(
+        choice === 'operator',
+        config.telnyx.phoneNumber,
+        baseUrl(req),
+        TELNYX_PREFIX,
+        session?.answers?.phone || session?.from || ''
+      )
     );
   })
 );
+
+app.post('/telnyx/voice/dial-result', validateTelnyxRequest, (req, res) => {
+  return xml(res, renderDialResult(req.body?.DialCallStatus));
+});
 
 app.post(
   '/telnyx/status',

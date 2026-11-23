@@ -9,6 +9,11 @@ import {
   buildInterruptedTicketData,
   buildTransferTicketData,
   createSession,
+  isDialAnswered,
+  renderDialResult,
+  renderDialVoip,
+  renderDialVoipFirst,
+  renderDirectForward,
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
@@ -18,6 +23,7 @@ import {
   scegliStatoTecnico,
   buildRichiesta
 } from '../lib/interventi.js';
+import { computeDesiredMode } from '../lib/schedule.js';
 import * as store from '../lib/store.js';
 
 let fail = 0;
@@ -170,6 +176,75 @@ const scheda = buildRichiesta({
 });
 check('richiesta è una scheda di intervento tecnico', scheda.startsWith('SCHEDA DI INTERVENTO TECNICO'), scheda.split('\n')[0]);
 check('scheda senza riga Urgenza', !/Urgenza:/.test(scheda));
+
+// VoIP SIP transfer & dial result
+check('isDialAnswered completed', isDialAnswered('completed') === true);
+check('isDialAnswered no-answer', isDialAnswered('no-answer') === false);
+check('renderDialResult completed -> Hangup', /<Hangup\/>/.test(renderDialResult('completed')) && !/<Say/.test(renderDialResult('completed')));
+check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult('no-answer')));
+{
+  const prev = { ...config.voip };
+  config.voip.transferEnabled = true;
+  config.voip.sipUri = 'sip:100@91.99.150.162:5060';
+  config.voip.sipUser = 'twilio-bridge';
+  config.voip.sipPassword = 'secret';
+  config.voip.bridgeToken = 'tok123';
+  const sipXml = renderDialVoip({
+    callerPhone: '+393480025630',
+    baseUrl: 'https://centralino.mtitaliaretail.com',
+    extension: '101'
+  });
+  check('renderDialVoip contiene <Sip>', /<Sip /.test(sipXml) && /sip:101@91\.99\.150\.162:5060/.test(sipXml), sipXml);
+  check('renderDialVoip passa X-MTI-Bridge e X-MTI-Caller', /X-MTI-Bridge=tok123/.test(sipXml) && /X-MTI-Caller=%2B393480025630/.test(sipXml));
+  const firstXml = renderDialVoipFirst({
+    callerPhone: '+393480025630',
+    baseUrl: 'https://centralino.mtitaliaretail.com'
+  });
+  check('renderDialVoipFirst usa /voice/voip-fallback senza Say', /\/twilio\/voice\/voip-fallback/.test(firstXml) && !/<Say/.test(firstXml));
+  config.voip.externalForwardEnabled = true;
+  const timXml = renderDirectForward(
+    '067821202',
+    '+17089052752',
+    'https://centralino.mtitaliaretail.com',
+    '/twilio',
+    '+393480025630'
+  );
+  check(
+    'renderDirectForward verso 067821202 usa Dial PSTN senza Say',
+    />\+39067821202<\/Dial>/.test(timXml) && !/<Sip/.test(timXml) && !/<Say/.test(timXml),
+    timXml
+  );
+  const voipDirectXml = renderDirectForward(
+    '100',
+    '+17089052752',
+    'https://centralino.mtitaliaretail.com',
+    '/twilio',
+    '+393480025630'
+  );
+  check(
+    'renderDirectForward verso 100 usa Sip Asterisk senza Say',
+    /<Sip /.test(voipDirectXml) && /sip:100@91\.99\.150\.162:5060/.test(voipDirectXml) && !/<Say/.test(voipDirectXml)
+  );
+  Object.assign(config.voip, prev);
+}
+
+// Programmazione oraria: fasce giornaliere, notturne (nextDay) e weekend (endDayOffset)
+{
+  const sched = {
+    enabled: true,
+    timezone: 'Europe/Rome',
+    defaultMode: 'virtuale',
+    slots: [
+      { days: [1, 2, 3, 4, 5], start: '13:00', end: '14:30', mode: 'inoltro' },
+      { days: [1, 2, 3, 4, 5], start: '17:00', end: '08:30', mode: 'inoltro', nextDay: true },
+      { days: [6], start: '13:00', end: '08:30', mode: 'inoltro', endDayOffset: 2 }
+    ]
+  };
+  check('schedule lun 14:05 -> inoltro', computeDesiredMode(sched, new Date('2026-11-23T13:05:00Z')) === 'inoltro');
+  check('schedule lun 15:00 -> virtuale (fuori fascia)', computeDesiredMode(sched, new Date('2026-11-23T14:00:00Z')) === 'virtuale');
+  check('schedule mar 07:00 -> inoltro (notte lun->mar)', computeDesiredMode(sched, new Date('2026-11-24T06:00:00Z')) === 'inoltro');
+  check('schedule dom 12:00 -> inoltro (weekend sab->lun)', computeDesiredMode(sched, new Date('2026-11-29T11:00:00Z')) === 'inoltro');
+}
 
 console.log(fail === 0 ? '\nTUTTO OK' : `\n${fail} ERRORI`);
 process.exit(fail === 0 ? 0 : 1);
