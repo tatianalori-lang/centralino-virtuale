@@ -34,6 +34,8 @@ const password = env.MESSAGENET_SIP_PASSWORD;
 const domain = env.MESSAGENET_SIP_DOMAIN || 'sip.messagenet.it';
 const ext101Pass = env.ASTERISK_EXT_101_PASSWORD || '';
 const ext102Pass = env.ASTERISK_EXT_102_PASSWORD || '';
+const ext101Name = env.ASTERISK_EXT_101_NAME || 'Segreteria';
+const ext102Name = env.ASTERISK_EXT_102_NAME || 'Damiano';
 const twilioBridgeUser = env.VOIP_SIP_USER || 'twilio-bridge';
 const twilioBridgePass = env.VOIP_SIP_PASSWORD || '';
 const bridgeToken = env.VOIP_BRIDGE_TOKEN || '';
@@ -156,6 +158,7 @@ rtp_symmetric=yes
 ice_support=no
 from_user=${uri}
 from_domain=${domain}
+send_pai=yes
 trust_id_inbound=yes
 
 [identify-messagenet]
@@ -220,8 +223,8 @@ match_header=X-MTI-Bridge: ${bridgeToken || 'CHANGE_ME'}
 ; ---------------------------------------------------------------------------
 ; Interni VoIP Yealink W76P (101, 102)
 ; ---------------------------------------------------------------------------
-${buildExtension('101', ext101Pass, 'Postazione 101')}
-${buildExtension('102', ext102Pass, 'Postazione 102')}
+${buildExtension('101', ext101Pass, ext101Name)}
+${buildExtension('102', ext102Pass, ext102Name)}
 `;
 
 const extensions = `[general]
