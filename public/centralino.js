@@ -14,7 +14,8 @@ const state = {
   forward: null,
   schedule: null,
   voip: null,
-  twilio: null
+  twilio: null,
+  blacklist: []
 };
 
 let toastTimer = null;
@@ -141,19 +142,84 @@ function renderSchedule() {
 
 async function loadAll() {
   try {
-    const [forward, schedule, voip, twilio] = await Promise.all([
+    const [forward, schedule, voip, twilio, bl] = await Promise.all([
       api('/api/modalita'),
       api('/api/schedule'),
       api('/api/voip/status'),
-      api('/api/twilio/status')
+      api('/api/twilio/status'),
+      api('/api/blacklist')
     ]);
     state.forward = forward;
     state.schedule = schedule;
     state.voip = voip;
     state.twilio = twilio;
+    state.blacklist = bl.items || [];
     renderStatus();
     renderSchedule();
+    renderBlacklist();
     $('#pbxSubtitle').textContent = `Aggiornato alle ${new Date().toLocaleTimeString('it-IT')}`;
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+function renderBlacklist() {
+  const container = $('#blacklistItems');
+  const items = state.blacklist || [];
+  if (!items.length) {
+    container.innerHTML =
+      '<div class="muted" style="font-size:13px">Nessun numero bloccato.</div>';
+    return;
+  }
+  container.innerHTML = items
+    .map((item) => {
+      const when = item.createdAt
+        ? new Date(item.createdAt).toLocaleDateString('it-IT')
+        : '';
+      return `<div class="schedule-slot">
+        <span class="slot-days">${escapeHtml(item.number)}</span>
+        <span class="slot-time">${escapeHtml(item.note || 'Bloccato')}${
+          when ? ` · ${escapeHtml(when)}` : ''
+        }</span>
+        <button class="slot-remove" type="button" data-unblock-id="${escapeHtml(
+          item.id
+        )}" title="Sblocca numero">×</button>
+      </div>`;
+    })
+    .join('');
+}
+
+async function addBlocked() {
+  const number = $('#blNumber').value.trim();
+  const note = $('#blNote').value.trim();
+  if (!number) {
+    toast('Inserisci un numero da bloccare', true);
+    return;
+  }
+  try {
+    const res = await api('/api/blacklist', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ number, note })
+    });
+    state.blacklist = res.items || [];
+    $('#blNumber').value = '';
+    $('#blNote').value = '';
+    renderBlacklist();
+    toast(`Numero ${res.item.number} bloccato`);
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
+async function removeBlocked(id) {
+  try {
+    const res = await api(`/api/blacklist/${encodeURIComponent(id)}`, {
+      method: 'DELETE'
+    });
+    state.blacklist = res.items || [];
+    renderBlacklist();
+    toast('Numero rimosso dai bloccati');
   } catch (err) {
     toast(err.message, true);
   }
@@ -309,6 +375,12 @@ function bindEvents() {
   });
 
   $('#pbxScheduleSave').addEventListener('click', saveSchedule);
+
+  $('#blAddBtn').addEventListener('click', addBlocked);
+  $('#blacklistItems').addEventListener('click', (event) => {
+    const btn = event.target.closest('[data-unblock-id]');
+    if (btn) removeBlocked(btn.dataset.unblockId);
+  });
 }
 
 bindEvents();

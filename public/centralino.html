@@ -175,6 +175,33 @@
               <button class="btn btn-ghost" id="pbxSlotAdd" type="button">+ Aggiungi fascia</button>
             </div>
           </section>
+
+          <section class="pbx-card full" aria-label="Numeri bloccati (Blacklist)">
+            <h2>4. Numeri Bloccati (Blacklist)</h2>
+            <p class="pbx-sub">
+              I numeri inseriti qui vengono rifiutati subito: i cordless non squillano, non parte il Centralino Virtuale e non viene aperto alcun ticket.
+            </p>
+
+            <div class="forward-controls" style="margin-bottom: 12px">
+              <input
+                id="blNumber"
+                type="tel"
+                placeholder="+39 06... oppure 333..."
+                autocomplete="off"
+              />
+              <input
+                id="blNote"
+                type="text"
+                placeholder="Motivo (es. Call center, Spam…)"
+                autocomplete="off"
+              />
+              <button class="btn btn-danger" id="blAddBtn" type="button">
+                Blocca numero
+              </button>
+            </div>
+
+            <div id="blacklistItems" class="schedule-slots"></div>
+          </section>
         </div>
       </main>
     </div>

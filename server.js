@@ -333,6 +333,31 @@ app.post(
   })
 );
 
+// ---------------------------------------------------------------------------
+// Numeri bloccati (Blacklist)
+// ---------------------------------------------------------------------------
+app.get('/api/blacklist', (req, res) => {
+  res.json({ items: store.listBlockedNumbers() });
+});
+
+app.post(
+  '/api/blacklist',
+  asyncRoute(async (req, res) => {
+    const { number, note } = req.body || {};
+    const item = await store.addBlockedNumber({ number, note });
+    return res.status(201).json({ item, items: store.listBlockedNumbers() });
+  })
+);
+
+app.delete(
+  '/api/blacklist/:id',
+  asyncRoute(async (req, res) => {
+    const removed = await store.removeBlockedNumber(req.params.id);
+    if (!removed) return res.status(404).json({ error: 'Numero non trovato nella lista' });
+    return res.json({ ok: true, items: store.listBlockedNumbers() });
+  })
+);
+
 app.get('/api/interventi/status', (req, res) => {
   res.json(interventiStatus());
 });
@@ -528,6 +553,13 @@ app.post(
     const { CallSid, To } = req.body;
     // Dal caller ID, non dal numero del centralino (vedi lib/callerId.js).
     const From = resolveCallerNumber(req.body, { log: true });
+    if (From && store.isNumberBlocked(From)) {
+      console.log(`[Blacklist] Chiamata rifiutata da ${From}`);
+      return xml(
+        res,
+        '<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="rejected"/></Response>'
+      );
+    }
     const forward = store.getForwardSettings();
 
     // Modalità inoltro diretto: tutte le chiamate vanno al centralino.
@@ -699,6 +731,13 @@ app.post(
   asyncRoute(async (req, res) => {
     const { CallSid, To } = telnyxParams(req);
     const From = resolveCallerNumber(req.body, { log: true });
+    if (From && store.isNumberBlocked(From)) {
+      console.log(`[Blacklist] Chiamata Telnyx rifiutata da ${From}`);
+      return xml(
+        res,
+        '<?xml version="1.0" encoding="UTF-8"?><Response><Reject reason="rejected"/></Response>'
+      );
+    }
     const forward = store.getForwardSettings();
 
     if (forward.enabled && forward.number) {

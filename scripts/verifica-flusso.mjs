@@ -246,5 +246,25 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   check('schedule dom 12:00 -> inoltro (weekend sab->lun)', computeDesiredMode(sched, new Date('2026-11-29T11:00:00Z')) === 'inoltro');
 }
 
+// Blacklist: blocco numeri in ingresso
+{
+  const testNum = '+390699988777';
+  const added = await store.addBlockedNumber({ number: testNum, note: 'Test spam' });
+  check('blacklist: aggiunto numero', Boolean(added.id));
+  check('blacklist: match E.164', store.isNumberBlocked('+390699988777') === true);
+  check('blacklist: match nazionale', store.isNumberBlocked('0699988777') === true);
+  check('blacklist: match 0039', store.isNumberBlocked('00390699988777') === true);
+  check('blacklist: altro numero non bloccato', store.isNumberBlocked('+390611122333') === false);
+  let ownRejected = false;
+  try {
+    await store.addBlockedNumber({ number: '067821202' });
+  } catch {
+    ownRejected = true;
+  }
+  check('blacklist: rifiuta numero del centralino', ownRejected === true);
+  await store.removeBlockedNumber(added.id);
+  check('blacklist: rimosso numero test', store.isNumberBlocked(testNum) === false);
+}
+
 console.log(fail === 0 ? '\nTUTTO OK' : `\n${fail} ERRORI`);
 process.exit(fail === 0 ? 0 : 1);

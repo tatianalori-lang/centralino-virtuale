@@ -555,7 +555,11 @@ function renderDrawer(ticket) {
         )}</div></div>
         <div class="detail"><div class="label">Telefono</div><div class="value">${escapeHtml(
           caller.phone || '—'
-        )}</div></div>
+        )}${
+          caller.phone
+            ? ` <button class="btn btn-ghost" id="blockCallerBtn" type="button" style="margin-left:8px;padding:3px 8px;font-size:11.5px;color:var(--red);border-color:#fecaca">Blocca numero</button>`
+            : ''
+        }</div></div>
         ${
           caller.email
             ? `<div class="detail"><div class="label">Email</div><div class="value">${escapeHtml(
@@ -708,6 +712,29 @@ function renderDrawer(ticket) {
         valueBox.textContent = error.message;
         apriBtn.disabled = false;
         apriBtn.textContent = 'Apri intervento';
+      }
+    });
+  }
+
+  const blockBtn = $('#blockCallerBtn');
+  if (blockBtn && caller.phone) {
+    blockBtn.addEventListener('click', async () => {
+      if (!window.confirm(`Bloccare le chiamate future da ${caller.phone}?`)) return;
+      blockBtn.disabled = true;
+      try {
+        await api('/api/blacklist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            number: caller.phone,
+            note: `Bloccato da ticket ${ticket.id}`
+          })
+        });
+        blockBtn.textContent = 'Bloccato ✓';
+        toast(`Numero ${caller.phone} bloccato`);
+      } catch (error) {
+        blockBtn.disabled = false;
+        toast(error.message, true);
       }
     });
   }
