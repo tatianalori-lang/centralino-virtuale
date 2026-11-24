@@ -225,6 +225,17 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
     'renderDirectForward verso 100 usa Sip Asterisk senza Say',
     /<Sip /.test(voipDirectXml) && /sip:100@91\.99\.150\.162:5060/.test(voipDirectXml) && !/<Say/.test(voipDirectXml)
   );
+  const voip103Xml = renderDirectForward(
+    '103',
+    '+17089052752',
+    'https://centralino.mtitaliaretail.com',
+    '/twilio',
+    '+393480025630'
+  );
+  check(
+    'renderDirectForward verso 103 usa Sip Asterisk senza Say',
+    /<Sip /.test(voip103Xml) && /sip:103@91\.99\.150\.162:5060/.test(voip103Xml) && !/<Say/.test(voip103Xml)
+  );
   Object.assign(config.voip, prev);
 }
 

@@ -235,7 +235,7 @@ app.get('/api/voip/status', (req, res) => {
 function isValidForwardTarget(value) {
   const cleaned = String(value || '').trim();
   if (!cleaned) return true;
-  if (/^(?:voip|interni|100|101|102)$/i.test(cleaned)) return true;
+  if (/^(?:voip|interni|10\d|110)$/i.test(cleaned)) return true;
   return cleaned.replace(/\D/g, '').length >= 6;
 }
 

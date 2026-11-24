@@ -32,10 +32,26 @@ for (const line of fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/)) {
 const uri = env.MESSAGENET_SIP_URI;
 const password = env.MESSAGENET_SIP_PASSWORD;
 const domain = env.MESSAGENET_SIP_DOMAIN || 'sip.messagenet.it';
-const ext101Pass = env.ASTERISK_EXT_101_PASSWORD || '';
-const ext102Pass = env.ASTERISK_EXT_102_PASSWORD || '';
-const ext101Name = env.ASTERISK_EXT_101_NAME || 'Segreteria';
-const ext102Name = env.ASTERISK_EXT_102_NAME || 'Damiano';
+const DEFAULT_EXT_NAMES = {
+  101: 'Segreteria',
+  102: 'Damiano',
+  103: 'Tatiana',
+  104: 'Alessio',
+  105: 'Roberto',
+  106: 'Benedetto'
+};
+
+const rawExtList = (env.ASTERISK_EXTENSIONS || '101,102,103,104,105,106')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => /^(?:10\d|110)$/.test(s));
+
+const voipExtensions = rawExtList.map((ext) => ({
+  ext,
+  password: env[`ASTERISK_EXT_${ext}_PASSWORD`] || '',
+  name: env[`ASTERISK_EXT_${ext}_NAME`] || DEFAULT_EXT_NAMES[ext] || `Interno ${ext}`
+}));
+
 const twilioBridgeUser = env.VOIP_SIP_USER || 'twilio-bridge';
 const twilioBridgePass = env.VOIP_SIP_PASSWORD || '';
 const bridgeToken = env.VOIP_BRIDGE_TOKEN || '';
@@ -52,9 +68,10 @@ if (!uri || !password) {
   process.exit(1);
 }
 
-if (!dryRun && (!ext101Pass || !ext102Pass || !twilioBridgePass || !bridgeToken)) {
+const missingExtPass = voipExtensions.filter((e) => !e.password).map((e) => `ASTERISK_EXT_${e.ext}_PASSWORD`);
+if (!dryRun && (missingExtPass.length || !twilioBridgePass || !bridgeToken)) {
   console.error(
-    'Password VoIP mancanti in .env (ASTERISK_EXT_101_PASSWORD, ASTERISK_EXT_102_PASSWORD, VOIP_SIP_PASSWORD, VOIP_BRIDGE_TOKEN). Esegui prima deploy/setup-voip-vps.sh.'
+    `Password VoIP mancanti in .env (${[...missingExtPass, 'VOIP_SIP_PASSWORD', 'VOIP_BRIDGE_TOKEN'].join(', ')}).`
   );
   process.exit(1);
 }
@@ -221,11 +238,29 @@ endpoint=endpoint-twilio-in
 match_header=X-MTI-Bridge: ${bridgeToken || 'CHANGE_ME'}
 
 ; ---------------------------------------------------------------------------
-; Interni VoIP Yealink W76P (101, 102)
+; Interni VoIP Yealink (${voipExtensions.map((e) => `${e.ext} ${e.name}`).join(', ')})
 ; ---------------------------------------------------------------------------
-${buildExtension('101', ext101Pass, ext101Name)}
-${buildExtension('102', ext102Pass, ext102Name)}
+${voipExtensions.map((e) => buildExtension(e.ext, e.password, e.name)).join('\n')}
 `;
+
+const ringGroupTargets = voipExtensions.map((e) => `PJSIP/${e.ext}`).join('&');
+
+const twilioExtDialplan = voipExtensions
+  .map(
+    (e) => `exten => ${e.ext},1,NoOp(Trasferimento IVR verso interno ${e.ext} from=\${CALLERID(num)})
+ same => n,Gosub(apply-mti-caller,s,1)
+ same => n,Dial(PJSIP/${e.ext},${dialTimeout},t)
+ same => n,Hangup()`
+  )
+  .join('\n\n');
+
+const internalExtDialplan = voipExtensions
+  .map(
+    (e) => `exten => ${e.ext},1,NoOp(Chiamata interna verso ${e.ext} da \${CALLERID(num)})
+ same => n,Dial(PJSIP/${e.ext},30,tT)
+ same => n,Hangup()`
+  )
+  .join('\n\n');
 
 const extensions = `[general]
 static=yes
@@ -265,18 +300,10 @@ exten => s,1,Set(PJSIP_HEADER(add,X-MTI-Caller)=\${MTI_CALLER})
 [from-twilio]
 exten => 100,1,NoOp(Trasferimento IVR verso gruppo 100 from=\${CALLERID(num)})
  same => n,Gosub(apply-mti-caller,s,1)
- same => n,Dial(PJSIP/101&PJSIP/102,${dialTimeout},t)
+ same => n,Dial(${ringGroupTargets},${dialTimeout},t)
  same => n,Hangup()
 
-exten => 101,1,NoOp(Trasferimento IVR verso interno 101 from=\${CALLERID(num)})
- same => n,Gosub(apply-mti-caller,s,1)
- same => n,Dial(PJSIP/101,${dialTimeout},t)
- same => n,Hangup()
-
-exten => 102,1,NoOp(Trasferimento IVR verso interno 102 from=\${CALLERID(num)})
- same => n,Gosub(apply-mti-caller,s,1)
- same => n,Dial(PJSIP/102,${dialTimeout},t)
- same => n,Hangup()
+${twilioExtDialplan}
 
 exten => _.,1,NoOp(Destinazione Twilio non valida: \${EXTEN})
  same => n,Hangup()
@@ -293,22 +320,16 @@ exten => s,1,Set(MTI_X_CALLER=\${PJSIP_HEADER(read,X-MTI-Caller)})
  same => n(done),Return()
 
 ; ---------------------------------------------------------------------------
-; Chiamate dagli interni Yealink (101, 102)
+; Chiamate dagli interni Yealink (${voipExtensions.map((e) => e.ext).join(', ')})
 ; ---------------------------------------------------------------------------
 [from-internal]
-; Gruppo di chiamata 100 -> squillano entrambi
+; Gruppo di chiamata 100 -> squillano tutti
 exten => 100,1,NoOp(Chiamata interna gruppo 100 da \${CALLERID(num)})
- same => n,Dial(PJSIP/101&PJSIP/102,30,tT)
+ same => n,Dial(${ringGroupTargets},30,tT)
  same => n,Hangup()
 
 ; Interni singoli
-exten => 101,1,NoOp(Chiamata interna verso 101 da \${CALLERID(num)})
- same => n,Dial(PJSIP/101,30,tT)
- same => n,Hangup()
-
-exten => 102,1,NoOp(Chiamata interna verso 102 da \${CALLERID(num)})
- same => n,Dial(PJSIP/102,30,tT)
- same => n,Hangup()
+${internalExtDialplan}
 
 ; Emergenza Italia
 exten => _11[2358],1,NoOp(Emergenza \${EXTEN} da \${CALLERID(num)})
@@ -364,7 +385,9 @@ strictrtp=no
 if (dryRun) {
   console.log(`Dry-run OK: letta env da ${ENV_FILE}`);
   console.log(`  MessageNet URI: ${uri}@${domain} (CLI uscita: ${outboundCli})`);
-  console.log(`  Interni generati: 101, 102, gruppo 100 (timeout ${dialTimeout}s)`);
+  console.log(
+    `  Interni generati: ${voipExtensions.map((e) => `${e.ext} (${e.name})`).join(', ')}, gruppo 100 (timeout ${dialTimeout}s)`
+  );
   process.exit(0);
 }
 
