@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -124,7 +125,13 @@ app.use('/api', (req, res, next) => {
   basicAuth(req, res, next);
 });
 app.use((req, res, next) => {
-  if (req.path.startsWith('/twilio') || req.path.startsWith('/telnyx')) return next();
+  if (
+    req.path.startsWith('/twilio') ||
+    req.path.startsWith('/telnyx') ||
+    req.path === '/rubrica/yealink.xml'
+  ) {
+    return next();
+  }
   basicAuth(req, res, next);
 });
 
@@ -410,6 +417,21 @@ app.get('/api/contacts/yealink.xml', (req, res) => {
   res.setHeader('Content-Type', 'application/xml; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="rubrica-yealink.xml"');
   res.send(xmlDoc);
+});
+
+app.get('/rubrica/yealink.xml', (req, res) => {
+  const expected = config.voip.contactsXmlToken;
+  const given = String(req.query.token || '');
+  if (
+    !expected ||
+    given.length !== expected.length ||
+    !crypto.timingSafeEqual(Buffer.from(given), Buffer.from(expected))
+  ) {
+    return res.status(403).send('Forbidden');
+  }
+  const items = store.listContacts();
+  res.setHeader('Content-Type', 'text/xml; charset=utf-8');
+  return res.send(store.contactsToYealinkXml(items));
 });
 
 app.patch(
