@@ -301,10 +301,22 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   });
   check('rubrica: import vCard (.vcf)', vcfRes.imported === 1);
 
+  const mnWebRes = await store.importContacts({
+    text: '  Test MN Web\n  +39 3390001112 (CEL)\n Invia SMS\n Modifica contatto\n Cancella contatto\nMESSAGENET\n© 2026 MessageNet S.p.A.',
+    source: 'messagenet'
+  });
+  check('rubrica: import copia-incolla web MessageNet', mnWebRes.imported === 1 && store.findContactByPhone('3390001112')?.name === 'Test MN Web');
+
+  const osmRes = await store.importOsmContacts([
+    { id: 1, ragione_sociale: 'Bar OSM Test', telefono: '0611223344', email: 'osm@example.com' },
+    { id: 2, ragione_sociale: 'Senza Numero', telefono: '' }
+  ]);
+  check('rubrica: import clienti OSM', osmRes.imported === 1 && store.findContactByPhone('0611223344')?.source === 'osm');
+
   const xmlDir = store.contactsToYealinkXml(store.listContacts({ q: 'Mario Verdi' }));
   check('rubrica: export XML Yealink valido', /<YealinkIPPhoneDirectory>/.test(xmlDir) && /Mario Verdi \(Pizzeria Roma\)/.test(xmlDir));
 
-  for (const q of ['Test Rubrica', 'Mario Verdi', 'Laura Neri']) {
+  for (const q of ['Test Rubrica', 'Mario Verdi', 'Laura Neri', 'Test MN Web', 'Bar OSM Test']) {
     for (const c of store.listContacts({ q })) {
       await store.deleteContact(c.id);
     }

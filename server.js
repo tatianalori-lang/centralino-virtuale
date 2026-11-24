@@ -30,7 +30,7 @@ import { requestBaseUrl, validateTwilioRequest } from './lib/signature.js';
 import { validateTelnyxRequest } from './lib/telnyxSignature.js';
 import { mailStatus } from './lib/mailer.js';
 import { sendTicketWhatsApp, whatsappStatus } from './lib/whatsapp.js';
-import { apriIntervento, status as interventiStatus } from './lib/interventi.js';
+import { apriIntervento, fetchClientiOsm, status as interventiStatus } from './lib/interventi.js';
 import { basicAuth, authStatus } from './lib/auth.js';
 import { webexStatus } from './lib/webex.js';
 import { twilioInsightsStatus } from './lib/twilioInsights.js';
@@ -379,6 +379,18 @@ app.post(
   asyncRoute(async (req, res) => {
     const { text, format, source } = req.body || {};
     const summary = await store.importContacts({ text, format, source });
+    return res.json({ ...summary, items: store.listContacts() });
+  })
+);
+
+app.post(
+  '/api/contacts/import-osm',
+  asyncRoute(async (req, res) => {
+    const result = await fetchClientiOsm();
+    if (!result.ok) {
+      return res.status(502).json({ error: result.error || 'Errore lettura clienti OSM' });
+    }
+    const summary = await store.importOsmContacts(result.clienti);
     return res.json({ ...summary, items: store.listContacts() });
   })
 );

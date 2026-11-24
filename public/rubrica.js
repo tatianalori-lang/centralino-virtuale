@@ -188,6 +188,22 @@ function bindEvents() {
   });
 
   $('#importBtn').addEventListener('click', runImport);
+  $('#importOsmBtn').addEventListener('click', async () => {
+    const btn = $('#importOsmBtn');
+    btn.disabled = true;
+    btn.textContent = 'Importazione da OSM…';
+    try {
+      const res = await api('/api/contacts/import-osm', { method: 'POST' });
+      $('#importSummary').textContent = `Importati da Gestione Interventi (OSM): ${res.imported} nuovi, ${res.updated} aggiornati, ${res.skipped} senza numero (totale in rubrica: ${res.total}).`;
+      toast(`OSM: ${res.imported} nuovi, ${res.updated} aggiornati`);
+      await loadContacts();
+    } catch (err) {
+      toast(err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Importa clienti da OSM';
+    }
+  });
   $('#importClearBtn').addEventListener('click', () => {
     $('#importFile').value = '';
     $('#importText').value = '';
