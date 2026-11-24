@@ -243,7 +243,14 @@ match_header=X-MTI-Bridge: ${bridgeToken || 'CHANGE_ME'}
 ${voipExtensions.map((e) => buildExtension(e.ext, e.password, e.name)).join('\n')}
 `;
 
-const ringGroupTargets = voipExtensions.map((e) => `PJSIP/${e.ext}`).join('&');
+const ringGroupList = (env.ASTERISK_RING_GROUP || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => voipExtensions.some((e) => e.ext === s));
+
+const ringGroupTargets = (ringGroupList.length ? ringGroupList : voipExtensions.map((e) => e.ext))
+  .map((ext) => `PJSIP/${ext}`)
+  .join('&');
 
 const twilioExtDialplan = voipExtensions
   .map(
