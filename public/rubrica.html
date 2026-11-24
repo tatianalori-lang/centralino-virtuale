@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rubrica · Centralino Virtuale</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">CV</div>
+          <div>
+            <strong>Centralino</strong>
+            <span>Virtuale</span>
+          </div>
+        </div>
+
+        <nav>
+          <a class="nav-item" href="/">▦ Dashboard Ticket</a>
+          <a class="nav-item" href="/centralino.html">⚙ Centralino &amp; Orari</a>
+          <a class="nav-item active" href="/rubrica.html">📒 Rubrica</a>
+          <a class="nav-item" href="/prova.html">☎ Prova il centralino</a>
+          <a class="nav-item" href="/api/export.csv">⤓ Esporta CSV</a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <div id="contactsCountPill" class="status-pill ok">Rubrica aziendale</div>
+          <p class="muted" style="margin: 10px 0 0">Riconoscimento chiamante + Yealink</p>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <h1>Rubrica Aziendale</h1>
+            <p class="muted" id="rubricaSubtitle">Caricamento contatti…</p>
+          </div>
+          <div class="topbar-actions">
+            <a class="btn btn-ghost" href="/api/contacts/export.csv">⤓ Esporta CSV</a>
+            <a class="btn btn-ghost" href="/api/contacts/yealink.xml">⤓ XML per Yealink</a>
+          </div>
+        </header>
+
+        <div class="pbx-grid">
+          <section class="pbx-card" aria-label="Nuovo contatto">
+            <h2 id="contactFormTitle">1. Nuovo contatto</h2>
+            <p class="pbx-sub">
+              I numeri salvati mostrano il nome del cliente sullo schermo dei cordless Yealink e nei ticket.
+            </p>
+
+            <form id="contactForm" style="display: grid; gap: 10px">
+              <input type="hidden" id="ctId" value="" />
+              <div class="form-row">
+                <div class="field">
+                  <label for="ctName">Nome *</label>
+                  <input id="ctName" type="text" placeholder="es. Mario Rossi" required />
+                </div>
+                <div class="field">
+                  <label for="ctPhone">Telefono *</label>
+                  <input id="ctPhone" type="tel" placeholder="es. +39 333 1234567" required />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="ctCompany">Azienda</label>
+                  <input id="ctCompany" type="text" placeholder="es. Bar Centrale" />
+                </div>
+                <div class="field">
+                  <label for="ctPhone2">Secondo numero</label>
+                  <input id="ctPhone2" type="tel" placeholder="opzionale" />
+                </div>
+              </div>
+              <div class="form-row">
+                <div class="field">
+                  <label for="ctEmail">Email</label>
+                  <input id="ctEmail" type="email" placeholder="opzionale" />
+                </div>
+                <div class="field">
+                  <label for="ctNote">Note</label>
+                  <input id="ctNote" type="text" placeholder="opzionale" />
+                </div>
+              </div>
+              <div class="forward-controls">
+                <button class="btn btn-primary" id="ctSubmitBtn" type="submit">Salva contatto</button>
+                <button class="btn btn-ghost hidden" id="ctCancelEditBtn" type="button">Annulla modifica</button>
+              </div>
+            </form>
+          </section>
+
+          <section class="pbx-card" aria-label="Importa rubrica da MessageNet">
+            <h2>2. Importa da MessageNet (CSV / vCard)</h2>
+            <p class="pbx-sub">
+              Esporta la rubrica da MessageNet (o da Excel/Google) in <strong>.csv</strong> o <strong>.vcf</strong> e caricala qui, oppure incolla i contatti riga per riga (<code>Nome; Telefono; Azienda</code>).
+            </p>
+
+            <div class="forward-controls" style="margin-bottom: 10px">
+              <input id="importFile" type="file" accept=".csv,.vcf,.txt,text/csv,text/vcard" />
+            </div>
+
+            <textarea
+              id="importText"
+              placeholder="Oppure incolla qui il testo CSV o righe tipo:&#10;Mario Rossi; +39 333 1234567; Bar Centrale&#10;Anna Bianchi; 0612345678"
+              style="min-height: 118px; margin-bottom: 10px"
+            ></textarea>
+
+            <div class="forward-controls">
+              <button class="btn btn-primary" id="importBtn" type="button">Importa contatti</button>
+              <button class="btn btn-ghost" id="importClearBtn" type="button">Pulisci</button>
+            </div>
+            <p class="muted" id="importSummary" style="margin: 10px 0 0; font-size: 12.5px"></p>
+          </section>
+        </div>
+
+        <section class="filters" aria-label="Cerca in rubrica">
+          <input
+            id="ctSearch"
+            type="search"
+            placeholder="Cerca contatto per nome, azienda, telefono o nota…"
+            autocomplete="off"
+          />
+          <button class="btn btn-ghost" id="ctRefreshBtn" type="button">Aggiorna</button>
+        </section>
+
+        <section class="table-card">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Azienda</th>
+                <th>Telefono</th>
+                <th>Email / Note</th>
+                <th>Origine</th>
+                <th style="text-align: right">Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="contactsBody"></tbody>
+          </table>
+          <div id="contactsEmpty" class="empty hidden">
+            <h3>Nessun contatto in rubrica</h3>
+            <p>Aggiungi un nuovo contatto qui sopra oppure importa la rubrica CSV/vCard da MessageNet.</p>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden" role="status"></div>
+    <script src="/rubrica.js" type="module"></script>
+  </body>
+</html>

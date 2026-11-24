@@ -266,5 +266,40 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   check('blacklist: rimosso numero test', store.isNumberBlocked(testNum) === false);
 }
 
+// Rubrica: creazione manuale, importazione CSV MessageNet, vCard, lookup & XML Yealink
+{
+  const created = await store.createContact({
+    name: 'Test Rubrica',
+    company: 'SRL Test',
+    phone: '+39 06 5554433',
+    email: 'test@example.com'
+  });
+  check('rubrica: contatto creato', Boolean(created.id));
+  check('rubrica: lookup per numero nazionale', store.findContactByPhone('065554433')?.id === created.id);
+  check('rubrica: lookup per numero 0039', store.findContactByPhone('0039065554433')?.id === created.id);
+
+  const csvRes = await store.importContacts({
+    text: 'Nome;Telefono;Azienda\nMario Verdi;+393339988776;Pizzeria Roma\nTest Rubrica;065554433;SRL Aggiornata',
+    source: 'messagenet'
+  });
+  check('rubrica: import CSV MessageNet (1 nuovo, 1 aggiornato)', csvRes.imported === 1 && csvRes.updated === 1, JSON.stringify(csvRes));
+
+  const vcfRes = await store.importContacts({
+    text: 'BEGIN:VCARD\nFN:Laura Neri\nORG:Bar Neri\nTEL;TYPE=CELL:+393471122334\nEND:VCARD',
+    format: 'vcf'
+  });
+  check('rubrica: import vCard (.vcf)', vcfRes.imported === 1);
+
+  const xmlDir = store.contactsToYealinkXml(store.listContacts({ q: 'Mario Verdi' }));
+  check('rubrica: export XML Yealink valido', /<YealinkIPPhoneDirectory>/.test(xmlDir) && /Mario Verdi \(Pizzeria Roma\)/.test(xmlDir));
+
+  for (const q of ['Test Rubrica', 'Mario Verdi', 'Laura Neri']) {
+    for (const c of store.listContacts({ q })) {
+      await store.deleteContact(c.id);
+    }
+  }
+  check('rubrica: pulizia contatti test', store.findContactByPhone('065554433') === null);
+}
+
 console.log(fail === 0 ? '\nTUTTO OK' : `\n${fail} ERRORI`);
 process.exit(fail === 0 ? 0 : 1);

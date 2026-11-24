@@ -115,7 +115,7 @@ const captureRawBody = (req, res, buf) => {
   req.rawBody = buf.toString('utf8');
 };
 app.use(express.urlencoded({ extended: false, verify: captureRawBody }));
-app.use(express.json({ limit: '200kb', verify: captureRawBody }));
+app.use(express.json({ limit: '2mb', verify: captureRawBody }));
 
 // Autenticazione dashboard: protegge le API (eccetto /api/health) e i file statici.
 // I webhook Twilio/Telnyx restano pubblici (non passano da qui).
@@ -358,6 +358,66 @@ app.delete(
   })
 );
 
+// ---------------------------------------------------------------------------
+// Rubrica aziendale (manuale + importazione MessageNet / CSV / vCard)
+// ---------------------------------------------------------------------------
+app.get('/api/contacts', (req, res) => {
+  const items = store.listContacts({ q: req.query.q });
+  res.json({ items, count: items.length });
+});
+
+app.post(
+  '/api/contacts',
+  asyncRoute(async (req, res) => {
+    const item = await store.createContact(req.body || {});
+    return res.status(201).json({ item, items: store.listContacts() });
+  })
+);
+
+app.post(
+  '/api/contacts/import',
+  asyncRoute(async (req, res) => {
+    const { text, format, source } = req.body || {};
+    const summary = await store.importContacts({ text, format, source });
+    return res.json({ ...summary, items: store.listContacts() });
+  })
+);
+
+app.get('/api/contacts/export.csv', (req, res) => {
+  const items = store.listContacts({ q: req.query.q });
+  const csv = store.contactsToCsv(items);
+  const stamp = new Date().toISOString().slice(0, 10);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="rubrica-${stamp}.csv"`);
+  res.send(`\uFEFF${csv}`);
+});
+
+app.get('/api/contacts/yealink.xml', (req, res) => {
+  const items = store.listContacts({ q: req.query.q });
+  const xmlDoc = store.contactsToYealinkXml(items);
+  res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="rubrica-yealink.xml"');
+  res.send(xmlDoc);
+});
+
+app.patch(
+  '/api/contacts/:id',
+  asyncRoute(async (req, res) => {
+    const item = await store.updateContact(req.params.id, req.body || {});
+    if (!item) return res.status(404).json({ error: 'Contatto non trovato' });
+    return res.json({ item, items: store.listContacts() });
+  })
+);
+
+app.delete(
+  '/api/contacts/:id',
+  asyncRoute(async (req, res) => {
+    const deleted = await store.deleteContact(req.params.id);
+    if (!deleted) return res.status(404).json({ error: 'Contatto non trovato' });
+    return res.json({ ok: true, items: store.listContacts() });
+  })
+);
+
 app.get('/api/interventi/status', (req, res) => {
   res.json(interventiStatus());
 });
@@ -561,12 +621,14 @@ app.post(
       );
     }
     const forward = store.getForwardSettings();
+    const contact = From ? store.findContactByPhone(From) : null;
 
     // Modalità inoltro diretto: tutte le chiamate vanno al centralino.
     if (forward.enabled && forward.number) {
       if (!store.getTicketByCallSid(CallSid)) {
         const ticket = await store.createTicket({
-          callerName: 'Non fornito',
+          callerName: contact?.name || 'Non fornito',
+          company: contact?.company || '',
           phone: From,
           from: From,
           reason: 'Inoltro diretto',
@@ -589,7 +651,8 @@ app.post(
           config.twilio.phoneNumber,
           baseUrl(req),
           '/twilio',
-          From
+          From,
+          contact?.name || ''
         )
       );
     }
@@ -605,6 +668,7 @@ app.post(
         renderDialVoipFirst({
           callerId: config.twilio.phoneNumber,
           callerPhone: From,
+          callerName: contact?.name || '',
           baseUrl: baseUrl(req),
           prefix: '/twilio'
         })
@@ -612,6 +676,7 @@ app.post(
     }
 
     const session = createSession({ callSid: CallSid, from: From, to: To });
+    if (contact) session.contactName = contact.name;
     return xml(res, renderCurrentStep(session, baseUrl(req)));
   })
 );
@@ -699,7 +764,8 @@ app.post(
         config.twilio.phoneNumber,
         baseUrl(req),
         '/twilio',
-        session?.answers?.phone || session?.from || ''
+        session?.answers?.phone || session?.from || '',
+        session?.answers?.callerName || session?.contactName || ''
       )
     );
   })
@@ -739,11 +805,13 @@ app.post(
       );
     }
     const forward = store.getForwardSettings();
+    const contact = From ? store.findContactByPhone(From) : null;
 
     if (forward.enabled && forward.number) {
       if (!store.getTicketByCallSid(CallSid)) {
         const ticket = await store.createTicket({
-          callerName: 'Non fornito',
+          callerName: contact?.name || 'Non fornito',
+          company: contact?.company || '',
           phone: From,
           from: From,
           reason: 'Inoltro diretto',
@@ -766,7 +834,8 @@ app.post(
           config.telnyx.phoneNumber,
           baseUrl(req),
           TELNYX_PREFIX,
-          From
+          From,
+          contact?.name || ''
         )
       );
     }
@@ -782,6 +851,7 @@ app.post(
         renderDialVoipFirst({
           callerId: config.telnyx.phoneNumber,
           callerPhone: From,
+          callerName: contact?.name || '',
           baseUrl: baseUrl(req),
           prefix: TELNYX_PREFIX
         })
@@ -789,6 +859,7 @@ app.post(
     }
 
     const session = createSession({ callSid: CallSid, from: From, to: To });
+    if (contact) session.contactName = contact.name;
     return xml(res, renderCurrentStep(session, baseUrl(req), undefined, TELNYX_PREFIX));
   })
 );

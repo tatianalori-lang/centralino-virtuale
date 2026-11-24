@@ -283,9 +283,13 @@ exten => _.,1,NoOp(Destinazione Twilio non valida: \${EXTEN})
 
 [apply-mti-caller]
 exten => s,1,Set(MTI_X_CALLER=\${PJSIP_HEADER(read,X-MTI-Caller)})
- same => n,GotoIf($["\${MTI_X_CALLER}" = ""]?done)
+ same => n,Set(MTI_X_NAME=\${PJSIP_HEADER(read,X-MTI-CallerName)})
+ same => n,GotoIf($["\${MTI_X_CALLER}" = ""]?checkname)
  same => n,Set(CALLERID(num)=\${MTI_X_CALLER})
- same => n,Set(CALLERID(name)=\${MTI_X_CALLER})
+ same => n(checkname),GotoIf($["\${MTI_X_NAME}" != ""]?setname)
+ same => n,Set(MTI_X_NAME=\${MTI_X_CALLER})
+ same => n(setname),GotoIf($["\${MTI_X_NAME}" = ""]?done)
+ same => n,Set(CALLERID(name)=\${MTI_X_NAME})
  same => n(done),Return()
 
 ; ---------------------------------------------------------------------------

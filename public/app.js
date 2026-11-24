@@ -557,7 +557,7 @@ function renderDrawer(ticket) {
           caller.phone || '—'
         )}${
           caller.phone
-            ? ` <button class="btn btn-ghost" id="blockCallerBtn" type="button" style="margin-left:8px;padding:3px 8px;font-size:11.5px;color:var(--red);border-color:#fecaca">Blocca numero</button>`
+            ? ` <button class="btn btn-ghost" id="saveContactBtn" type="button" style="margin-left:8px;padding:3px 8px;font-size:11.5px">+ Rubrica</button> <button class="btn btn-ghost" id="blockCallerBtn" type="button" style="margin-left:4px;padding:3px 8px;font-size:11.5px;color:var(--red);border-color:#fecaca">Blocca numero</button>`
             : ''
         }</div></div>
         ${
@@ -712,6 +712,35 @@ function renderDrawer(ticket) {
         valueBox.textContent = error.message;
         apriBtn.disabled = false;
         apriBtn.textContent = 'Apri intervento';
+      }
+    });
+  }
+
+  const saveContactBtn = $('#saveContactBtn');
+  if (saveContactBtn && caller.phone) {
+    saveContactBtn.addEventListener('click', async () => {
+      const defaultName =
+        caller.name && caller.name !== 'Non fornito' ? caller.name : caller.company || '';
+      const name = window.prompt('Nome del contatto da salvare in rubrica:', defaultName);
+      if (!name || !name.trim()) return;
+      saveContactBtn.disabled = true;
+      try {
+        await api('/api/contacts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            company: caller.company || '',
+            phone: caller.phone,
+            email: caller.email || '',
+            source: 'ticket'
+          })
+        });
+        saveContactBtn.textContent = 'In rubrica ✓';
+        toast(`Contatto ${name.trim()} salvato in rubrica`);
+      } catch (error) {
+        saveContactBtn.disabled = false;
+        toast(error.message, true);
       }
     });
   }
