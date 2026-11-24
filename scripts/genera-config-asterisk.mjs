@@ -318,13 +318,17 @@ exten => _.,1,NoOp(Destinazione Twilio non valida: \${EXTEN})
 [apply-mti-caller]
 exten => s,1,Set(MTI_X_CALLER=\${PJSIP_HEADER(read,X-MTI-Caller)})
  same => n,Set(MTI_X_NAME=\${PJSIP_HEADER(read,X-MTI-CallerName)})
- same => n,GotoIf($["\${MTI_X_CALLER}" = ""]?checkname)
- same => n,Set(CALLERID(num)=\${MTI_X_CALLER})
- same => n(checkname),GotoIf($["\${MTI_X_NAME}" != ""]?setname)
+ same => n,GotoIf($["\${MTI_X_CALLER}" != ""]?setnum)
+ ; Se il numero reale non e' disponibile (es. deviazione TIM), evita di mostrare
+ ; il numero USA Twilio (+17089052752) e mostra il riferimento del centralino.
+ same => n,Set(CALLERID(num)=067821202)
+ same => n,Set(CALLERID(name)=Centralino)
+ same => n,Return()
+ same => n(setnum),Set(CALLERID(num)=\${MTI_X_CALLER})
+ same => n,GotoIf($["\${MTI_X_NAME}" != ""]?setname)
  same => n,Set(MTI_X_NAME=\${MTI_X_CALLER})
- same => n(setname),GotoIf($["\${MTI_X_NAME}" = ""]?done)
- same => n,Set(CALLERID(name)=\${MTI_X_NAME})
- same => n(done),Return()
+ same => n(setname),Set(CALLERID(name)=\${MTI_X_NAME})
+ same => n,Return()
 
 ; ---------------------------------------------------------------------------
 ; Chiamate dagli interni Yealink (${voipExtensions.map((e) => e.ext).join(', ')})
