@@ -270,7 +270,10 @@ function bindEvents() {
   $('#reloadAllBtn').addEventListener('click', loadAll);
 
   $('#pbxModeVirtuale').addEventListener('click', () =>
-    updateModalita({ mode: 'virtuale' }, 'Centralino Virtuale attivo')
+    updateModalita(
+      { mode: 'virtuale', voipStrategy: 'ivr_first' },
+      'Centralino Virtuale attivo (prima Centralino Virtuale, poi interni 101/102)'
+    )
   );
   $('#pbxModeInoltro').addEventListener('click', () =>
     updateModalita(

@@ -268,13 +268,16 @@ async function setVoipStrategy(voipStrategy) {
 
 async function setMode(mode) {
   try {
+    const payload = {
+      mode,
+      number: $('#forwardNumber').value.trim()
+    };
+    if (mode === 'virtuale') payload.voipStrategy = 'ivr_first';
+
     const forward = await api('/api/modalita', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        mode,
-        number: $('#forwardNumber').value.trim()
-      })
+      body: JSON.stringify(payload)
     });
     state.forward = forward;
     renderForward();
