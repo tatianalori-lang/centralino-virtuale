@@ -32,6 +32,8 @@ for (const line of fs.readFileSync(ENV_FILE, 'utf8').split(/\r?\n/)) {
 const uri = env.MESSAGENET_SIP_URI;
 const password = env.MESSAGENET_SIP_PASSWORD;
 const domain = env.MESSAGENET_SIP_DOMAIN || 'sip.messagenet.it';
+const altUri = env.MESSAGENET_ALT_SIP_URI || '';
+const altPassword = env.MESSAGENET_ALT_SIP_PASSWORD || '';
 const DEFAULT_EXT_NAMES = {
   101: 'Federica',
   102: 'Damiano',
@@ -199,6 +201,30 @@ trust_id_inbound=yes
 type=identify
 endpoint=endpoint-messagenet
 match=${MESSAGENET_SBC}
+${
+  altUri && altPassword && altUri !== uri
+    ? `
+; Registrazione secondaria MessageNet (numero di backup)
+[auth-messagenet-alt]
+type=auth
+auth_type=userpass
+username=${altUri}
+password=${altPassword}
+
+[reg-messagenet-alt]
+type=registration
+transport=transport-udp
+client_uri=sip:${altUri}@${domain}
+server_uri=sip:${domain}
+contact_user=${altUri}
+outbound_auth=auth-messagenet-alt
+expiration=600
+retry_interval=60
+forbidden_retry_interval=300
+max_retries=0
+`
+    : ''
+}
 
 ; ---------------------------------------------------------------------------
 ; Uscita verso il SIP Domain Twilio (IVR)
