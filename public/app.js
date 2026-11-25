@@ -330,7 +330,9 @@ function renderSchedule() {
   $('#scheduleEnabled').checked = Boolean(s.enabled);
   $('#scheduleDefaultMode').value = s.defaultMode || 'virtuale';
   $('#scheduleDesc').textContent = s.enabled
-    ? `Programmazione attiva · default: ${s.defaultMode || 'virtuale'}`
+    ? `Programmazione attiva · fuori fascia: ${
+        s.defaultMode === 'inoltro' ? 'Inoltro diretto' : 'Centralino Virtuale'
+      }`
     : 'Programmazione disattivata · usa il pulsante per attivarla';
 
   const container = $('#scheduleSlots');
@@ -346,10 +348,13 @@ function renderSchedule() {
         .map((d) => DAY_NAMES[d] || d)
         .join(', ');
       const time = `${slot.start || ''} → ${slot.end || ''}${slot.nextDay ? ' (giorno dopo)' : ''}${slot.endDayOffset ? ` (+${slot.endDayOffset} gg)` : ''}`;
+      const mode = slot.mode || 'inoltro';
       return `<div class="schedule-slot">
         <span class="slot-days">${escapeHtml(days)}</span>
         <span class="slot-time">${escapeHtml(time)}</span>
-        <span class="slot-mode ${escapeHtml(slot.mode || 'inoltro')}">${escapeHtml(slot.mode || 'inoltro')}</span>
+        <span class="slot-mode ${escapeHtml(mode)}">${escapeHtml(
+          mode === 'inoltro' ? 'Inoltro diretto' : 'Centralino Virtuale'
+        )}</span>
         <button class="slot-remove" type="button" data-remove-slot="${index}" aria-label="Rimuovi fascia">×</button>
       </div>`;
     })
@@ -896,7 +901,10 @@ async function init() {
   }
 
   state.timer = setInterval(() => {
-    if (state.autoRefresh && !document.hidden) refresh();
+    if (state.autoRefresh && !document.hidden) {
+      refresh();
+      loadForward();
+    }
   }, 5000);
 }
 

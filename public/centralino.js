@@ -242,17 +242,23 @@ async function updateModalita(payload, successMsg) {
 async function saveSchedule() {
   try {
     const s = state.schedule || { slots: [] };
+    const enabled = $('#pbxScheduleEnabled').checked;
+    const defaultMode = $('#pbxScheduleDefaultMode').value;
+    const slots = s.slots || [];
+
     state.schedule = await api('/api/schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        enabled: $('#pbxScheduleEnabled').checked,
-        defaultMode: $('#pbxScheduleDefaultMode').value,
-        slots: s.slots || []
-      })
+      body: JSON.stringify({ enabled, defaultMode, slots })
     });
     renderSchedule();
-    toast('Programmazione oraria salvata');
+    const allSame =
+      enabled && slots.length > 0 && slots.every((sl) => (sl.mode || 'inoltro') === defaultMode);
+    if (allSame) {
+      toast('Attenzione: tutte le fasce e "Fuori fascia" hanno la stessa modalità', true);
+    } else {
+      toast('Programmazione oraria salvata');
+    }
     await loadAll();
   } catch (err) {
     toast(err.message, true);
@@ -388,3 +394,8 @@ function bindEvents() {
 
 bindEvents();
 loadAll();
+setInterval(() => {
+  if (!document.hidden && !['INPUT', 'SELECT'].includes(document.activeElement?.tagName)) {
+    loadAll();
+  }
+}, 15000);

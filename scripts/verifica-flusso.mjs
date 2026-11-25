@@ -255,6 +255,22 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   check('schedule lun 15:00 -> virtuale (fuori fascia)', computeDesiredMode(sched, new Date('2026-11-23T14:00:00Z')) === 'virtuale');
   check('schedule mar 07:00 -> inoltro (notte lun->mar)', computeDesiredMode(sched, new Date('2026-11-24T06:00:00Z')) === 'inoltro');
   check('schedule dom 12:00 -> inoltro (weekend sab->lun)', computeDesiredMode(sched, new Date('2026-11-29T11:00:00Z')) === 'inoltro');
+
+  const officeSched = {
+    enabled: true,
+    timezone: 'Europe/Rome',
+    defaultMode: 'inoltro',
+    slots: [
+      { days: [1, 2, 3, 4, 5], start: '13:00', end: '14:30', mode: 'virtuale' },
+      { days: [1, 2, 3, 4, 5], start: '17:00', end: '08:30', mode: 'virtuale', nextDay: true },
+      { days: [6], start: '13:00', end: '08:30', mode: 'virtuale', endDayOffset: 2 }
+    ]
+  };
+  check('schedule ufficio mer 08:29 -> virtuale', computeDesiredMode(officeSched, new Date('2026-11-25T07:29:00Z')) === 'virtuale');
+  check('schedule ufficio mer 08:30 -> inoltro', computeDesiredMode(officeSched, new Date('2026-11-25T07:30:00Z')) === 'inoltro');
+  check('schedule ufficio mer 13:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-11-25T12:00:00Z')) === 'virtuale');
+  check('schedule ufficio mer 14:30 -> inoltro', computeDesiredMode(officeSched, new Date('2026-11-25T13:30:00Z')) === 'inoltro');
+  check('schedule ufficio mer 17:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-11-25T16:00:00Z')) === 'virtuale');
 }
 
 // Blacklist: blocco numeri in ingresso
