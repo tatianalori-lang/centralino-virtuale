@@ -52,6 +52,21 @@ const voipExtensions = rawExtList.map((ext) => ({
   name: env[`ASTERISK_EXT_${ext}_NAME`] || DEFAULT_EXT_NAMES[ext] || `Interno ${ext}`
 }));
 
+const groupAccount = String(env.ASTERISK_GROUP_ACCOUNT || '').trim();
+const groupAccountPass = groupAccount ? env[`ASTERISK_EXT_${groupAccount}_PASSWORD`] || '' : '';
+const groupAccountName = groupAccount
+  ? env[`ASTERISK_EXT_${groupAccount}_NAME`] || 'Centralino'
+  : '';
+
+const allPjsipExtensions = [...voipExtensions];
+if (groupAccount && !allPjsipExtensions.some((e) => e.ext === groupAccount)) {
+  allPjsipExtensions.push({
+    ext: groupAccount,
+    password: groupAccountPass,
+    name: groupAccountName
+  });
+}
+
 const twilioBridgeUser = env.VOIP_SIP_USER || 'twilio-bridge';
 const twilioBridgePass = env.VOIP_SIP_PASSWORD || '';
 const bridgeToken = env.VOIP_BRIDGE_TOKEN || '';
@@ -68,7 +83,9 @@ if (!uri || !password) {
   process.exit(1);
 }
 
-const missingExtPass = voipExtensions.filter((e) => !e.password).map((e) => `ASTERISK_EXT_${e.ext}_PASSWORD`);
+const missingExtPass = allPjsipExtensions
+  .filter((e) => !e.password)
+  .map((e) => `ASTERISK_EXT_${e.ext}_PASSWORD`);
 if (!dryRun && (missingExtPass.length || !twilioBridgePass || !bridgeToken)) {
   console.error(
     `Password VoIP mancanti in .env (${[...missingExtPass, 'VOIP_SIP_PASSWORD', 'VOIP_BRIDGE_TOKEN'].join(', ')}).`
@@ -238,9 +255,9 @@ endpoint=endpoint-twilio-in
 match_header=X-MTI-Bridge: ${bridgeToken || 'CHANGE_ME'}
 
 ; ---------------------------------------------------------------------------
-; Interni VoIP Yealink (${voipExtensions.map((e) => `${e.ext} ${e.name}`).join(', ')})
+; Interni VoIP Yealink (${allPjsipExtensions.map((e) => `${e.ext} ${e.name}`).join(', ')})
 ; ---------------------------------------------------------------------------
-${voipExtensions.map((e) => buildExtension(e.ext, e.password, e.name)).join('\n')}
+${allPjsipExtensions.map((e) => buildExtension(e.ext, e.password, e.name)).join('\n')}
 `;
 
 const ringGroupList = (env.ASTERISK_RING_GROUP || '')
@@ -248,9 +265,12 @@ const ringGroupList = (env.ASTERISK_RING_GROUP || '')
   .map((s) => s.trim())
   .filter((s) => voipExtensions.some((e) => e.ext === s));
 
-const ringGroupTargets = (ringGroupList.length ? ringGroupList : voipExtensions.map((e) => e.ext))
-  .map((ext) => `PJSIP/${ext}`)
-  .join('&');
+const ringGroupTargets =
+  groupAccount && groupAccountPass
+    ? `PJSIP/${groupAccount}`
+    : (ringGroupList.length ? ringGroupList : voipExtensions.map((e) => e.ext))
+        .map((ext) => `PJSIP/${ext}`)
+        .join('&');
 
 const twilioExtDialplan = voipExtensions
   .map(
