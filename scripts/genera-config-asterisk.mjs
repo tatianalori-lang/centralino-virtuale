@@ -33,7 +33,7 @@ const uri = env.MESSAGENET_SIP_URI;
 const password = env.MESSAGENET_SIP_PASSWORD;
 const domain = env.MESSAGENET_SIP_DOMAIN || 'sip.messagenet.it';
 const DEFAULT_EXT_NAMES = {
-  101: 'Segreteria',
+  101: 'Federica',
   102: 'Damiano',
   103: 'Tatiana',
   104: 'Alessio',
