@@ -230,6 +230,7 @@ function renderForward() {
   $('#modeInoltro').classList.toggle('active', isForward);
   $('#modeVirtuale').setAttribute('aria-pressed', String(!isForward));
   $('#modeInoltro').setAttribute('aria-pressed', String(isForward));
+  $('#voipStrategy').classList.toggle('hidden', isForward);
   $('#voipStrategy').value = strategy;
   $('#forwardNumber').value = forward.number || '';
 

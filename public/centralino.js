@@ -62,8 +62,10 @@ function renderStatus() {
   $('#pbxModeInoltro').classList.toggle('active', isInoltro);
   $('#pbxModeVirtuale').setAttribute('aria-pressed', String(!isInoltro));
   $('#pbxModeInoltro').setAttribute('aria-pressed', String(isInoltro));
-  $('#stratIvrFirst').classList.toggle('active', strategy === 'ivr_first');
-  $('#stratVoipFirst').classList.toggle('active', strategy === 'voip_first');
+  $('#strategyWrap').classList.toggle('hidden', isInoltro);
+  $('#inoltroDirectBanner').classList.toggle('hidden', !isInoltro);
+  $('#stratIvrFirst').classList.toggle('active', !isInoltro && strategy === 'ivr_first');
+  $('#stratVoipFirst').classList.toggle('active', !isInoltro && strategy === 'voip_first');
 
   $('#pbxForwardNumber').value = f.number || '';
   document.querySelectorAll('[data-target]').forEach((btn) => {
@@ -72,17 +74,22 @@ function renderStatus() {
 
   $('#statMode').textContent = isInoltro ? 'Inoltro diretto' : 'Centralino Virtuale';
   $('#statModeHint').textContent = isInoltro
-    ? 'Le chiamate saltano il questionario IVR'
+    ? 'Le chiamate saltano il Centralino Virtuale'
     : 'Le chiamate vengono gestite dal centralino virtuale';
 
-  $('#statStrategy').textContent =
-    strategy === 'voip_first'
-      ? 'Prima interni 101/102'
-      : 'Prima Centralino Virtuale';
-  $('#statStrategyHint').textContent =
-    strategy === 'voip_first'
-      ? `Squillano prima i Yealink (${v.dialTimeout || 25}s), poi Centralino Virtuale`
-      : 'Prima Centralino Virtuale; Yealink su "operatore" o Inoltro';
+  if (isInoltro) {
+    $('#statStrategy').textContent = 'Squillo diretto';
+    $('#statStrategyHint').textContent = 'Rispondono subito i telefoni senza Centralino Virtuale';
+  } else {
+    $('#statStrategy').textContent =
+      strategy === 'voip_first'
+        ? 'Prima interni 101/102'
+        : 'Prima Centralino Virtuale';
+    $('#statStrategyHint').textContent =
+      strategy === 'voip_first'
+        ? `Squillano prima i Yealink (${v.dialTimeout || 25}s), poi Centralino Virtuale`
+        : 'Prima Centralino Virtuale; Yealink su "operatore" o Inoltro';
+  }
 
   $('#statTarget').textContent = f.number || '100 (101 + 102)';
 

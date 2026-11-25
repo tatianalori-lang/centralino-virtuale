@@ -78,7 +78,11 @@
               <button class="mode-btn" id="pbxModeInoltro" type="button">Inoltro diretto a 067821202</button>
             </div>
 
-            <div class="strategy-grid" role="group" aria-label="Ordine risposta VoIP">
+            <div id="inoltroDirectBanner" class="hidden" style="margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: #f0fdf4; border: 1.5px solid #86efac; color: #166534; font-size: 13px; font-weight: 600;">
+              ✓ Inoltro diretto attivo: le chiamate fanno squillare subito i telefoni senza passare dal Centralino Virtuale.
+            </div>
+
+            <div class="strategy-grid" id="strategyWrap" role="group" aria-label="Ordine risposta VoIP">
               <button class="strategy-card" id="stratIvrFirst" type="button">
                 <strong>Prima inoltro a Centralino Virtuale, poi interni 101/102</strong>
                 <span>Risponde sempre prima il Centralino Virtuale per raccogliere i dati; i Yealink 101/102 squillano su richiesta "operatore" o in Inoltro diretto.</span>
