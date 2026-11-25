@@ -27,7 +27,7 @@
 
         <div class="sidebar-footer">
           <div id="voipPill" class="status-pill">Verifica stato VoIP…</div>
-          <p class="muted" style="margin: 10px 0 0">Asterisk · Yealink W76P (101 / 102)</p>
+          <p class="muted" style="margin: 10px 0 0">Asterisk · Yealink W76P (101–106)</p>
         </div>
       </aside>
 
@@ -84,12 +84,12 @@
 
             <div class="strategy-grid" id="strategyWrap" role="group" aria-label="Ordine risposta VoIP">
               <button class="strategy-card" id="stratIvrFirst" type="button">
-                <strong>Prima inoltro a Centralino Virtuale, poi interni 101/102</strong>
-                <span>Risponde sempre prima il Centralino Virtuale per raccogliere i dati; i Yealink 101/102 squillano su richiesta "operatore" o in Inoltro diretto.</span>
+                <strong>Prima inoltro a Centralino Virtuale, poi tutti gli interni (101–106)</strong>
+                <span>Risponde sempre prima il Centralino Virtuale per raccogliere i dati; gli interni 101–106 (Segreteria, Damiano, Tatiana, Alessio, Roberto, Benedetto) squillano su richiesta "operatore" o in Inoltro diretto.</span>
               </button>
               <button class="strategy-card" id="stratVoipFirst" type="button">
-                <strong>Prima interni 101/102, poi inoltro a Centralino Virtuale</strong>
-                <span>Squillano subito entrambi i Yealink 101/102; se nessuno risponde entro il timeout parte il Centralino Virtuale e apre il ticket.</span>
+                <strong>Prima tutti gli interni (101–106), poi inoltro a Centralino Virtuale</strong>
+                <span>Squillano subito tutti i Yealink 101–106 (Segreteria, Damiano, Tatiana, Alessio, Roberto, Benedetto); se nessuno risponde entro il timeout parte il Centralino Virtuale e apre il ticket.</span>
               </button>
             </div>
           </section>
@@ -115,7 +115,7 @@
               <input
                 id="pbxForwardNumber"
                 type="text"
-                placeholder="100, 101, 102 oppure +39..."
+                placeholder="100, 101–106 oppure +39..."
                 autocomplete="off"
               />
               <button class="btn btn-primary" id="pbxSaveTarget" type="button">

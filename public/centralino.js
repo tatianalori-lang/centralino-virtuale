@@ -83,15 +83,15 @@ function renderStatus() {
   } else {
     $('#statStrategy').textContent =
       strategy === 'voip_first'
-        ? 'Prima interni 101/102'
+        ? 'Prima interni 101–106'
         : 'Prima Centralino Virtuale';
     $('#statStrategyHint').textContent =
       strategy === 'voip_first'
-        ? `Squillano prima i Yealink (${v.dialTimeout || 25}s), poi Centralino Virtuale`
-        : 'Prima Centralino Virtuale; Yealink su "operatore" o Inoltro';
+        ? `Squillano prima i Yealink 101–106 (${v.dialTimeout || 25}s), poi Centralino Virtuale`
+        : 'Prima Centralino Virtuale; Yealink 101–106 su "operatore" o Inoltro';
   }
 
-  $('#statTarget').textContent = f.number || '100 (101 + 102)';
+  $('#statTarget').textContent = f.number || '100 (101–106)';
 
   $('#statVoip').textContent = v.ready ? 'Attivo' : 'Disattivo (solo IVR)';
   $('#statVoipHint').textContent = v.ready
@@ -105,7 +105,7 @@ function renderStatus() {
   const dest = String(f.number || '+390686358716').trim();
   const international = dest.startsWith('+') ? `00${dest.slice(1)}` : dest;
   $('#pbxTimCode').textContent = `*21*${international}#`;
-  $('#pbxTimAlt').textContent = `Se il numero è interno VoIP (100/101/102), la deviazione TIM verso il centralino resta *21*00390686358716#.`;
+  $('#pbxTimAlt').textContent = `Se il numero è interno VoIP (100 o 101–106), la deviazione TIM verso il centralino resta *21*00390686358716#.`;
 }
 
 function renderSchedule() {
@@ -285,7 +285,7 @@ function bindEvents() {
   $('#pbxModeVirtuale').addEventListener('click', () =>
     updateModalita(
       { mode: 'virtuale', voipStrategy: 'ivr_first' },
-      'Centralino Virtuale attivo (prima Centralino Virtuale, poi interni 101/102)'
+      'Centralino Virtuale attivo (prima Centralino Virtuale, poi interni 101–106)'
     )
   );
   $('#pbxModeInoltro').addEventListener('click', () =>
@@ -298,13 +298,13 @@ function bindEvents() {
   $('#stratIvrFirst').addEventListener('click', () =>
     updateModalita(
       { voipStrategy: 'ivr_first' },
-      'Ordine: prima inoltro a Centralino Virtuale, poi interni 101/102'
+      'Ordine: prima inoltro a Centralino Virtuale, poi interni 101–106'
     )
   );
   $('#stratVoipFirst').addEventListener('click', () =>
     updateModalita(
       { voipStrategy: 'voip_first' },
-      'Ordine: prima interni 101/102, poi inoltro a Centralino Virtuale'
+      'Ordine: prima interni 101–106, poi inoltro a Centralino Virtuale'
     )
   );
 

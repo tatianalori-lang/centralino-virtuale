@@ -236,12 +236,12 @@ function renderForward() {
 
   const strategyDesc =
     strategy === 'voip_first'
-      ? 'Squillano prima gli interni 101/102; se non risponde nessuno parte il Centralino Virtuale.'
-      : 'Risponde prima il Centralino Virtuale; gli interni 101/102 squillano su richiesta "operatore".';
+      ? 'Squillano prima gli interni 101–106; se non risponde nessuno parte il Centralino Virtuale.'
+      : 'Risponde prima il Centralino Virtuale; gli interni 101–106 squillano su richiesta "operatore".';
 
   $('#forwardDesc').textContent = isForward
     ? `Inoltro diretto attivo verso ${
-        forward.number || 'interni VoIP 101/102'
+        forward.number || 'interni VoIP 101–106'
       }. Le chiamate non passano dal Centralino Virtuale.`
     : `Centralino Virtuale attivo. ${strategyDesc} Centralino: ${
         forward.centralinoNumber || '—'
@@ -259,8 +259,8 @@ async function setVoipStrategy(voipStrategy) {
     renderForward();
     toast(
       voipStrategy === 'voip_first'
-        ? 'Ordine: prima interni 101/102, poi inoltro a Centralino Virtuale'
-        : 'Ordine: prima inoltro a Centralino Virtuale, poi interni 101/102'
+        ? 'Ordine: prima interni 101–106, poi inoltro a Centralino Virtuale'
+        : 'Ordine: prima inoltro a Centralino Virtuale, poi interni 101–106'
     );
   } catch (error) {
     toast(error.message, true);
