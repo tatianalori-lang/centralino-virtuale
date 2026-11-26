@@ -291,9 +291,16 @@ const ringGroupList = (env.ASTERISK_RING_GROUP || '')
   .map((s) => s.trim())
   .filter((s) => voipExtensions.some((e) => e.ext === s));
 
+const groupExtraList = (env.ASTERISK_GROUP_EXTRA || '')
+  .split(',')
+  .map((s) => s.trim())
+  .filter((s) => allPjsipExtensions.some((e) => e.ext === s));
+
 const ringGroupTargets =
   groupAccount && groupAccountPass
-    ? `PJSIP/${groupAccount}`
+    ? [groupAccount, ...groupExtraList.filter((e) => e !== groupAccount)]
+        .map((ext) => `PJSIP/${ext}`)
+        .join('&')
     : (ringGroupList.length ? ringGroupList : voipExtensions.map((e) => e.ext))
         .map((ext) => `PJSIP/${ext}`)
         .join('&');
