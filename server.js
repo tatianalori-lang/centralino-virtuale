@@ -623,6 +623,7 @@ app.post(
 // ---------------------------------------------------------------------------
 
 const pendingVoipCalls = new Map();
+const pendingDirectCalls = new Map();
 
 function rememberPendingVoipCall(callSid, from, to) {
   if (!callSid) return;
@@ -638,6 +639,57 @@ function takePendingVoipCall(callSid) {
   const item = pendingVoipCalls.get(callSid) || null;
   pendingVoipCalls.delete(callSid);
   return item;
+}
+
+function rememberPendingDirectCall(callSid, { from, to, contactName, company } = {}) {
+  if (!callSid) return;
+  const now = Date.now();
+  for (const [key, item] of pendingDirectCalls.entries()) {
+    if (now - item.createdAt > 10 * 60 * 1000) pendingDirectCalls.delete(key);
+  }
+  pendingDirectCalls.set(callSid, {
+    from: from || '',
+    to: to || '',
+    contactName: contactName || '',
+    company: company || '',
+    createdAt: now
+  });
+}
+
+function takePendingDirectCall(callSid) {
+  if (!callSid) return null;
+  const item = pendingDirectCalls.get(callSid) || null;
+  pendingDirectCalls.delete(callSid);
+  return item;
+}
+
+async function handleDirectDialResult(callSid, dialStatus) {
+  const direct = takePendingDirectCall(callSid);
+  const answered = isDialAnswered(dialStatus);
+  console.log(
+    `[DialResult] ${callSid || '?'} status=${dialStatus || '?'} answered=${answered} direct=${Boolean(direct)}`
+  );
+  if (!direct || answered) return null;
+  if (callSid && store.getTicketByCallSid(callSid)) return null;
+
+  const ticket = await store.createTicket({
+    callerName: direct.contactName || 'Non fornito',
+    company: direct.company || '',
+    phone: direct.from,
+    from: direct.from,
+    reason: 'Chiamata senza risposta',
+    product: '',
+    issue: `Chiamata non risposta in inoltro diretto (${dialStatus || 'no-answer'}).`,
+    priority: 'media',
+    source: 'inoltro',
+    call: { sid: callSid, from: direct.from, to: direct.to, startedAt: direct.createdAt }
+  });
+  scheduleCallerRecovery({
+    callSid,
+    ticketId: ticket.id,
+    startedAt: direct.createdAt
+  });
+  return ticket;
 }
 
 app.post(
@@ -657,27 +709,15 @@ app.post(
     const forward = store.getForwardSettings();
     const contact = From ? store.findContactByPhone(From) : null;
 
-    // Modalità inoltro diretto: tutte le chiamate vanno al centralino.
+    // Modalità inoltro diretto: in orario lavorativo risponde il centralino.
+    // Non apre ticket subito: lo crea solo in dial-result se nessuno risponde.
     if (forward.enabled && forward.number) {
-      if (!store.getTicketByCallSid(CallSid)) {
-        const ticket = await store.createTicket({
-          callerName: contact?.name || 'Non fornito',
-          company: contact?.company || '',
-          phone: From,
-          from: From,
-          reason: 'Inoltro diretto',
-          product: '',
-          issue: 'Chiamata inoltrata direttamente al centralino.',
-          priority: 'media',
-          source: 'inoltro',
-          call: { sid: CallSid, from: From, to: To, startedAt: Date.now() }
-        });
-        scheduleCallerRecovery({
-          callSid: CallSid,
-          ticketId: ticket.id,
-          startedAt: Date.now()
-        });
-      }
+      rememberPendingDirectCall(CallSid, {
+        from: From,
+        to: To,
+        contactName: contact?.name || '',
+        company: contact?.company || ''
+      });
       return xml(
         res,
         renderDirectForward(
@@ -805,9 +845,15 @@ app.post(
   })
 );
 
-app.post('/twilio/voice/dial-result', validateTwilioRequest, (req, res) => {
-  return xml(res, renderDialResult(req.body?.DialCallStatus));
-});
+app.post(
+  '/twilio/voice/dial-result',
+  validateTwilioRequest,
+  asyncRoute(async (req, res) => {
+    const { CallSid, DialCallStatus } = req.body || {};
+    await handleDirectDialResult(CallSid, DialCallStatus);
+    return xml(res, renderDialResult(DialCallStatus));
+  })
+);
 
 // Callback di stato delle chiamate (facoltativo, utile per diagnosi).
 app.post(
@@ -842,25 +888,12 @@ app.post(
     const contact = From ? store.findContactByPhone(From) : null;
 
     if (forward.enabled && forward.number) {
-      if (!store.getTicketByCallSid(CallSid)) {
-        const ticket = await store.createTicket({
-          callerName: contact?.name || 'Non fornito',
-          company: contact?.company || '',
-          phone: From,
-          from: From,
-          reason: 'Inoltro diretto',
-          product: '',
-          issue: 'Chiamata inoltrata direttamente al centralino.',
-          priority: 'media',
-          source: 'inoltro',
-          call: { sid: CallSid, from: From, to: To, startedAt: Date.now() }
-        });
-        scheduleCallerRecovery({
-          callSid: CallSid,
-          ticketId: ticket.id,
-          startedAt: Date.now()
-        });
-      }
+      rememberPendingDirectCall(CallSid, {
+        from: From,
+        to: To,
+        contactName: contact?.name || '',
+        company: contact?.company || ''
+      });
       return xml(
         res,
         renderDirectForward(
@@ -994,9 +1027,16 @@ app.post(
   })
 );
 
-app.post('/telnyx/voice/dial-result', validateTelnyxRequest, (req, res) => {
-  return xml(res, renderDialResult(req.body?.DialCallStatus));
-});
+app.post(
+  '/telnyx/voice/dial-result',
+  validateTelnyxRequest,
+  asyncRoute(async (req, res) => {
+    const { CallSid } = telnyxParams(req);
+    const dialStatus = req.body?.DialCallStatus;
+    await handleDirectDialResult(CallSid, dialStatus);
+    return xml(res, renderDialResult(dialStatus));
+  })
+);
 
 app.post(
   '/telnyx/status',
