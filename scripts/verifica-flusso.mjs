@@ -216,8 +216,10 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
 {
   const finalXml = renderFinal({ ticketId: 'TK-20261126-0001' });
   check(
-    'renderFinal chiude subito senza operatore/WhatsApp',
-    !/operatore|whatsapp/i.test(finalXml) && /<Hangup\/>/.test(finalXml),
+    'renderFinal chiude subito senza operatore/WhatsApp e applica rate SSML',
+    !/operatore|whatsapp/i.test(finalXml) &&
+      /<Hangup\/>/.test(finalXml) &&
+      /<prosody rate="115%">/.test(finalXml),
     finalXml
   );
 }
