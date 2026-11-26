@@ -14,6 +14,7 @@ import {
   renderDialVoip,
   renderDialVoipFirst,
   renderDirectForward,
+  renderFinal,
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
@@ -182,6 +183,14 @@ check('isDialAnswered completed', isDialAnswered('completed') === true);
 check('isDialAnswered no-answer', isDialAnswered('no-answer') === false);
 check('renderDialResult completed -> Hangup', /<Hangup\/>/.test(renderDialResult('completed')) && !/<Say/.test(renderDialResult('completed')));
 check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult('no-answer')));
+{
+  const finalXml = renderFinal({ ticketId: 'TK-20261126-0001' });
+  check(
+    'renderFinal chiude subito senza operatore/WhatsApp',
+    !/operatore|whatsapp/i.test(finalXml) && /<Hangup\/>/.test(finalXml),
+    finalXml
+  );
+}
 {
   const prev = { ...config.voip };
   config.voip.transferEnabled = true;
