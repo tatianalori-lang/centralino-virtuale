@@ -223,7 +223,7 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
       /Sarà ricontattato\./.test(finalXml) &&
       /<Hangup\/>/.test(finalXml) &&
       /<prosody rate="115%">/.test(finalXml) &&
-      /<prosody rate="130%">.*assistenza/.test(finalXml) &&
+      /<prosody rate="130%">.*assistenza.*Verrà gestita con priorità/.test(finalXml) &&
       /8:30/.test(finalXml) &&
       /17:00/.test(finalXml),
     finalXml
