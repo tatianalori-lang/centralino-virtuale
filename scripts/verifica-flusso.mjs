@@ -15,6 +15,7 @@ import {
   renderDialVoipFirst,
   renderDirectForward,
   renderFinal,
+  renderCurrentStep,
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
@@ -221,6 +222,15 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
       /<Hangup\/>/.test(finalXml) &&
       /<prosody rate="115%">/.test(finalXml),
     finalXml
+  );
+  const issueSession = createSession({ callSid: 'CA-issue', from: '+393331234567', to: '067821202' });
+  issueSession.step = 'issue';
+  issueSession.answers.reason = 'Assistenza tecnica';
+  const issueXml = renderCurrentStep(issueSession, 'https://centralino.mtitaliaretail.com');
+  check(
+    'step issue concede più tempo (timeout=12, speechTimeout=3)',
+    /speechTimeout="3"/.test(issueXml) && /timeout="12"/.test(issueXml),
+    issueXml
   );
 }
 {
