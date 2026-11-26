@@ -413,13 +413,25 @@ exten => _3X.,1,NoOp(Uscita mobile \${EXTEN} da \${CALLERID(num)})
  same => n,Dial(PJSIP/\${EXTEN}@endpoint-messagenet,90,T)
  same => n,Hangup()
 
+; Uscita con prefisso +39 -> rimuove +39 (MessageNet vuole formato nazionale italiano)
+exten => _+39X.,1,NoOp(Uscita IT E.164 \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/\${EXTEN:3}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+
+; Uscita con prefisso 0039 -> rimuove 0039 (MessageNet vuole formato nazionale italiano)
+exten => _0039X.,1,NoOp(Uscita IT 0039 \${EXTEN} da \${CALLERID(num)})
+ same => n,Set(CALLERID(num)=${outboundCli})
+ same => n,Dial(PJSIP/\${EXTEN:4}@endpoint-messagenet,90,T)
+ same => n,Hangup()
+
 ; Uscita internazionale (00...)
 exten => _00X.,1,NoOp(Uscita internazionale \${EXTEN} da \${CALLERID(num)})
  same => n,Set(CALLERID(num)=${outboundCli})
  same => n,Dial(PJSIP/\${EXTEN}@endpoint-messagenet,90,T)
  same => n,Hangup()
 
-; Uscita con prefisso + -> converte + in 00 per MessageNet
+; Uscita con prefisso + estero -> converte + in 00 per MessageNet
 exten => _+X.,1,NoOp(Uscita E.164 \${EXTEN} da \${CALLERID(num)})
  same => n,Set(CALLERID(num)=${outboundCli})
  same => n,Dial(PJSIP/00\${EXTEN:1}@endpoint-messagenet,90,T)
