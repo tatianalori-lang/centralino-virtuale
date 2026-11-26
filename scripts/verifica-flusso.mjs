@@ -68,6 +68,30 @@ check('nessun passo conferma', !visited.includes('confirm'), visited.join(' -> '
 check('dialogo completato senza conferma', step === 'done');
 check('nessun campo urgency nelle risposte', !('urgency' in answers), JSON.stringify(answers));
 
+// Percorso non tecnico: salta sia product sia issue.
+{
+  let sId = 'reason';
+  let ans = { phone: '+393331234567' };
+  const visitedNonTech = [];
+  const nonTechReply = {
+    reason: 'informazioni commerciali',
+    name: 'Mario Bianchi',
+    company: 'Negozio Test',
+    address: 'Via Milano 2'
+  };
+  for (let i = 0; i < 10 && sId !== 'done'; i += 1) {
+    visitedNonTech.push(sId);
+    const out = handleAnswer(sId, ans, '', { speech: nonTechReply[sId] || 'salta' }, 0);
+    ans = out.answers;
+    sId = out.outcome === 'done' ? 'done' : out.nextStep;
+  }
+  check(
+    'non tecnico salta product e issue',
+    visitedNonTech.join(',') === 'reason,name,company,address',
+    visitedNonTech.join(' -> ')
+  );
+}
+
 const session = {
   callSid: 'CAtest',
   from: '+393331234567',
