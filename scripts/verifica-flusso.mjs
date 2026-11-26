@@ -233,8 +233,10 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   issueSession.answers.reason = 'Assistenza tecnica';
   const issueXml = renderCurrentStep(issueSession, 'https://centralino.mtitaliaretail.com');
   check(
-    'step issue concede più tempo (timeout=12, speechTimeout=3)',
-    /speechTimeout="3"/.test(issueXml) && /timeout="12"/.test(issueXml),
+    'step issue concede più tempo (timeout=12, speechTimeout=3) e apre microfono dopo Say',
+    /speechTimeout="3"/.test(issueXml) &&
+      /timeout="12"/.test(issueXml) &&
+      /<\/Say><Gather /.test(issueXml),
     issueXml
   );
   const reasonSession = createSession({ callSid: 'CA-reason', from: '+393331234567', to: '067821202' });
