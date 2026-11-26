@@ -121,7 +121,7 @@ async function loadTwilioStatus() {
     if (status.ready) {
       element.className = 'status-pill ok';
       element.textContent = 'Twilio configurato';
-      element.title = `Numero: ${status.phoneNumber || '—'} · Webhook: ${
+      element.title = `Ingresso: ${status.phoneNumber || 'SIP Domain (MessageNet)'} · Webhook: ${
         status.publicBaseUrl || '—'
       }`;
     } else {
@@ -130,7 +130,7 @@ async function loadTwilioStatus() {
       const missing = [];
       if (!status.accountSid) missing.push('Account SID');
       if (!status.authToken) missing.push('Auth Token');
-      if (!status.phoneNumber) missing.push('numero Twilio');
+      if (!status.phoneNumber && !status.sipDomainMode) missing.push('numero Twilio o SIP VoIP');
       if (!status.publicBaseUrl) missing.push('PUBLIC_BASE_URL');
       element.title = `Mancano: ${missing.join(', ')}`;
     }
@@ -163,8 +163,12 @@ function renderTimHint() {
   $('#timHintTitle').textContent = `Inoltro di ${italian} (TIM) verso il centralino virtuale`;
 
   if (!codes.plus) {
-    element.textContent = 'numero Twilio non configurato';
-    alt.textContent = '';
+    element.textContent = state.twilio?.sipDomainMode
+      ? 'SIP diretto via MessageNet attivo'
+      : 'numero Twilio non configurato';
+    alt.textContent = state.twilio?.sipDomainMode
+      ? 'Le chiamate entrano direttamente via SIP da MessageNet verso Twilio senza costi di numeri USA.'
+      : '';
     button.disabled = true;
     return;
   }

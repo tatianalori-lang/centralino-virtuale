@@ -18,7 +18,7 @@ import {
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
-import { config } from '../lib/config.js';
+import { config, twilioStatus } from '../lib/config.js';
 import {
   scegliTipoTecnico,
   scegliStatoTecnico,
@@ -275,6 +275,18 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
     'renderDirectForward verso 103 usa Sip Asterisk senza Say',
     /<Sip /.test(voip103Xml) && /sip:103@91\.99\.150\.162:5060/.test(voip103Xml) && !/<Say/.test(voip103Xml)
   );
+  {
+    const prevTw = { ...config.twilio };
+    const prevUrl = config.publicBaseUrl;
+    config.twilio.accountSid = 'ACtest';
+    config.twilio.authToken = 'toktest';
+    config.twilio.phoneNumber = '';
+    config.publicBaseUrl = 'https://centralino.mtitaliaretail.com';
+    const st = twilioStatus();
+    check('twilioStatus ready anche senza numero USA se SIP VoIP attivo', st.ready === true && st.sipDomainMode === true, JSON.stringify(st));
+    Object.assign(config.twilio, prevTw);
+    config.publicBaseUrl = prevUrl;
+  }
   Object.assign(config.voip, prev);
 }
 
