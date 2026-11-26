@@ -44,13 +44,30 @@ set_env_if_missing "ASTERISK_EXT_102_PASSWORD" "$(gen_secret)"
 set_env_if_missing "MESSAGENET_OUTBOUND_CLI" "+390686358716"
 chmod 600 "$ENV_FILE"
 
-echo "==> Logger Asterisk (include security per Fail2ban)"
+echo "==> Logger Asterisk + logrotate anti-riempimento disco"
 cat > /etc/asterisk/logger.conf <<'EOF'
 [general]
 [logfiles]
-messages => notice,warning,error,security
+messages => warning,error
+security => security
 EOF
 chown asterisk:asterisk /etc/asterisk/logger.conf || true
+
+cat > /etc/logrotate.d/asterisk <<'EOF'
+/var/log/asterisk/messages /var/log/asterisk/security /var/log/asterisk/cdr-csv/*.csv {
+  daily
+  maxsize 20M
+  missingok
+  rotate 5
+  compress
+  delaycompress
+  notifempty
+  sharedscripts
+  postrotate
+    /usr/sbin/asterisk -rx 'logger reload' >/dev/null 2>&1 || true
+  endscript
+}
+EOF
 
 echo "==> Genero configurazione PJSIP e Dialplan Asterisk"
 cd "$APP_DIR"
@@ -71,10 +88,11 @@ fi
 cat > /etc/fail2ban/jail.d/asterisk.conf <<'EOF'
 [asterisk]
 enabled = true
+backend = auto
 port = 5060,5061
 protocol = udp
 filter = asterisk
-logpath = /var/log/asterisk/messages
+logpath = /var/log/asterisk/security
 maxretry = 5
 findtime = 600
 bantime = 3600
