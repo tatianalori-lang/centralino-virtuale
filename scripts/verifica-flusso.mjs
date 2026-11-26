@@ -16,6 +16,7 @@ import {
   renderDirectForward,
   renderFinal,
   renderCurrentStep,
+  handleTwilioStep,
   startAbandonedCallWatcher
 } from '../lib/ivr.js';
 import { resolveCallerNumber } from '../lib/callerId.js';
@@ -234,6 +235,23 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
     /speechTimeout="3"/.test(issueXml) && /timeout="12"/.test(issueXml),
     issueXml
   );
+  const reasonSession = createSession({ callSid: 'CA-reason', from: '+393331234567', to: '067821202' });
+  const reasonXml = renderCurrentStep(reasonSession, 'https://centralino.mtitaliaretail.com');
+  check(
+    'step reason apre microfono dopo Say e include hints',
+    /<\/Say><Gather [^>]*hints="assistenza tecnica/.test(reasonXml),
+    reasonXml
+  );
+  const greetOut = handleTwilioStep(reasonSession, { speech: 'Pronto?' });
+  check(
+    'saluto iniziale Pronto non consuma tentativi e non dice Non ho capito',
+    greetOut.done === false && greetOut.error === 'GREETING' && reasonSession.retries === 0,
+    JSON.stringify(greetOut)
+  );
+  const greetXml = renderCurrentStep(reasonSession, 'https://centralino.mtitaliaretail.com', greetOut.error);
+  check('risposta a GREETING non dice Non ho capito', !/Non ho capito/.test(greetXml), greetXml);
+  const afterGreet = handleTwilioStep(reasonSession, { speech: 'Assistenza tecnica' });
+  check('dopo saluto Pronto accetta Assistenza tecnica', afterGreet.done === false && reasonSession.step === 'product');
 }
 {
   const prev = { ...config.voip };
