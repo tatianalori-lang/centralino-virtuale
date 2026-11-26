@@ -68,13 +68,14 @@ check('nessun passo conferma', !visited.includes('confirm'), visited.join(' -> '
 check('dialogo completato senza conferma', step === 'done');
 check('nessun campo urgency nelle risposte', !('urgency' in answers), JSON.stringify(answers));
 
-// Percorso non tecnico: salta sia product sia issue.
+// Percorso non tecnico: salta product, ma chiede "richiesta" (issue) senza parlare di problema.
 {
   let sId = 'reason';
   let ans = { phone: '+393331234567' };
   const visitedNonTech = [];
   const nonTechReply = {
     reason: 'informazioni commerciali',
+    issue: 'Vorrei un preventivo per una bilancia',
     name: 'Mario Bianchi',
     company: 'Negozio Test',
     address: 'Via Milano 2'
@@ -85,10 +86,15 @@ check('nessun campo urgency nelle risposte', !('urgency' in answers), JSON.strin
     ans = out.answers;
     sId = out.outcome === 'done' ? 'done' : out.nextStep;
   }
+  const nonTechIssuePrompt = getStep('issue', { reason: 'Informazioni commerciali' }).prompt;
+  const techIssuePrompt = getStep('issue', { reason: 'Assistenza tecnica' }).prompt;
   check(
-    'non tecnico salta product e issue',
-    visitedNonTech.join(',') === 'reason,name,company,address',
-    visitedNonTech.join(' -> ')
+    'non tecnico salta solo product e chiede richiesta',
+    visitedNonTech.join(',') === 'reason,issue,name,company,address' &&
+      /richiesta/i.test(nonTechIssuePrompt) &&
+      !/problema/i.test(nonTechIssuePrompt) &&
+      /problematica/i.test(techIssuePrompt),
+    `${visitedNonTech.join(' -> ')} | ${nonTechIssuePrompt}`
   );
 }
 
