@@ -41,6 +41,7 @@ import {
   saveSchedule,
   computeDesiredMode,
   getActiveHoliday,
+  listUpcomingHolidays,
   startScheduler
 } from './lib/schedule.js';
 
@@ -321,7 +322,8 @@ app.get('/api/schedule', (req, res) => {
   res.json({
     ...schedule,
     currentDesiredMode: computeDesiredMode(schedule),
-    activeHoliday: getActiveHoliday(schedule)
+    activeHoliday: getActiveHoliday(schedule),
+    upcomingHolidays: listUpcomingHolidays(schedule)
   });
 });
 
@@ -347,7 +349,8 @@ app.post(
     return res.json({
       ...schedule,
       currentDesiredMode: desired,
-      activeHoliday: getActiveHoliday(schedule)
+      activeHoliday: getActiveHoliday(schedule),
+      upcomingHolidays: listUpcomingHolidays(schedule)
     });
   })
 );

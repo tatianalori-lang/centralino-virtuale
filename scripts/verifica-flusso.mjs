@@ -26,7 +26,11 @@ import {
   scegliStatoTecnico,
   buildRichiesta
 } from '../lib/interventi.js';
-import { computeDesiredMode, getItalianHolidayName } from '../lib/schedule.js';
+import {
+  computeDesiredMode,
+  getItalianHolidayName,
+  listUpcomingHolidays
+} from '../lib/schedule.js';
 import * as store from '../lib/store.js';
 
 let fail = 0;
@@ -367,6 +371,7 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   check('festivi: 25 aprile', getItalianHolidayName(2026, 4, 25) === 'Festa della Liberazione');
   check('festivi: 1 maggio', getItalianHolidayName(2026, 5, 1) === 'Festa dei Lavoratori');
   check('festivi: 2 giugno', getItalianHolidayName(2026, 6, 2) === 'Festa della Repubblica');
+  check('festivi: 29 giugno Roma', getItalianHolidayName(2026, 6, 29) === 'Santi Pietro e Paolo (Roma)');
   check('festivi: 15 agosto', getItalianHolidayName(2026, 8, 15) === 'Ferragosto');
   check('festivi: 1 novembre', getItalianHolidayName(2026, 11, 1) === 'Ognissanti');
   check('festivi: 8 dicembre', getItalianHolidayName(2026, 12, 8) === 'Immacolata Concezione');
@@ -381,9 +386,23 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
     computeDesiredMode({ ...officeSched, holidaysVirtuale: false }, new Date('2026-12-08T09:00:00Z')) === 'inoltro'
   );
   check(
-    'schedule festivo personalizzato 29/06 -> virtuale',
-    computeDesiredMode({ ...officeSched, customHolidays: ['29/06'] }, new Date('2026-06-29T08:00:00Z')) === 'virtuale'
+    'schedule festivo personalizzato 14/08 -> virtuale',
+    computeDesiredMode({ ...officeSched, customHolidays: ['14/08'] }, new Date('2026-08-14T08:00:00Z')) === 'virtuale'
   );
+  {
+    const list = listUpcomingHolidays(officeSched, {
+      from: new Date('2026-11-27T10:00:00Z'),
+      daysAhead: 250
+    });
+    check(
+      'listUpcomingHolidays include 8/12, Natale, Pasquetta e 29/06 Roma',
+      list.some((x) => x.date === '2026-12-08') &&
+        list.some((x) => x.date === '2026-12-25') &&
+        list.some((x) => x.date === '2027-03-29') &&
+        list.some((x) => x.date === '2027-06-29' && /Pietro e Paolo/.test(x.name)),
+      list.map((x) => x.date).join(',')
+    );
+  }
 }
 
 // Blacklist: blocco numeri in ingresso

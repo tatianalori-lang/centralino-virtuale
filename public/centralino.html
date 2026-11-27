@@ -144,10 +144,10 @@
                 <input type="checkbox" id="pbxScheduleEnabled" />
                 Attiva programmazione automatica
               </label>
-              <label class="switch">
-                <input type="checkbox" id="pbxScheduleHolidays" />
-                Festivi italiani → Centralino Virtuale tutto il giorno
-              </label>
+              <div class="mode-switch" role="group" aria-label="Modalità giorni festivi">
+                <button class="mode-btn" id="pbxHolidayOn" type="button">Modalità festivi: Attiva</button>
+                <button class="mode-btn" id="pbxHolidayOff" type="button">Disattiva</button>
+              </div>
               <select id="pbxScheduleDefaultMode" aria-label="Modalità fuori fascia">
                 <option value="virtuale">Fuori fascia: Centralino Virtuale (default)</option>
                 <option value="inoltro">Fuori fascia: Inoltro diretto (default)</option>
@@ -161,12 +161,12 @@
               <input
                 id="pbxCustomHolidays"
                 type="text"
-                placeholder="Altri giorni di chiusura (es. 29/06, 14/08, 24/12)"
+                placeholder="Altri giorni di chiusura (es. 14/08, 24/12, 31/12)"
                 autocomplete="off"
                 aria-label="Giorni festivi o chiusure extra"
               />
               <span class="muted" style="font-size: 12px">
-                Festivi nazionali inclusi: 1/1, 6/1, Pasqua/Pasquetta, 25/4, 1/5, 2/6, 15/8, 1/11, 8/12, 25/12, 26/12
+                Festivi inclusi: 1/1, 6/1, Pasqua/Pasquetta, 25/4, 1/5, 2/6, 29/6 (Roma), 15/8, 1/11, 8/12, 25/12, 26/12
               </span>
             </div>
 
@@ -199,6 +199,26 @@
                 Fino al giorno successivo
               </label>
               <button class="btn btn-ghost" id="pbxSlotAdd" type="button">+ Aggiungi fascia</button>
+            </div>
+
+            <div style="margin-top: 18px; padding-top: 14px; border-top: 1px solid #e2e8f0">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+                <strong style="font-size: 14px">Prossimi giorni festivi automatici (Centralino Virtuale 24h)</strong>
+                <span class="muted" id="pbxHolidaysSummary" style="font-size: 12px"></span>
+              </div>
+              <div class="table-wrap" style="max-height: 280px; overflow-y: auto">
+                <table class="ticket-table" style="width:100%;border-collapse:collapse;font-size:13px">
+                  <thead>
+                    <tr style="text-align:left;border-bottom:1px solid #e2e8f0;color:#64748b">
+                      <th style="padding:8px 10px">Data</th>
+                      <th style="padding:8px 10px">Giorno</th>
+                      <th style="padding:8px 10px">Festività</th>
+                      <th style="padding:8px 10px">Modalità</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pbxHolidaysBody"></tbody>
+                </table>
+              </div>
             </div>
           </section>
 

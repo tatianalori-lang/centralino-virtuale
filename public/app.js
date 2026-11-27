@@ -877,6 +877,7 @@ function bindEvents() {
   $('#copyTimCode').addEventListener('click', copyTimCode);
 
   $('#scheduleSave').addEventListener('click', saveSchedule);
+  $('#scheduleHolidays').addEventListener('change', saveSchedule);
   $('#slotAdd').addEventListener('click', addSlot);
   $('#scheduleSlots').addEventListener('click', (event) => {
     const btn = event.target.closest('[data-remove-slot]');

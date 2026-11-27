@@ -123,7 +123,9 @@ function formatCustomHolidaysForInput(list) {
 function renderSchedule() {
   const s = state.schedule || {};
   $('#pbxScheduleEnabled').checked = Boolean(s.enabled);
-  $('#pbxScheduleHolidays').checked = s.holidaysVirtuale !== false;
+  const holidaysOn = s.holidaysVirtuale !== false;
+  $('#pbxHolidayOn').classList.toggle('active', holidaysOn);
+  $('#pbxHolidayOff').classList.toggle('active', !holidaysOn);
   $('#pbxCustomHolidays').value = formatCustomHolidaysForInput(s.customHolidays);
   $('#pbxScheduleDefaultMode').value = s.defaultMode || 'virtuale';
 
@@ -158,6 +160,42 @@ function renderSchedule() {
         )}</span>
         <button class="slot-remove" type="button" data-remove-slot="${index}" title="Rimuovi fascia">×</button>
       </div>`;
+    })
+    .join('');
+
+  renderHolidays(s);
+}
+
+function renderHolidays(s) {
+  const body = $('#pbxHolidaysBody');
+  const summary = $('#pbxHolidaysSummary');
+  if (!body) return;
+  const active = Boolean(s.enabled && s.holidaysVirtuale !== false);
+  const items = s.upcomingHolidays || [];
+  if (summary) {
+    summary.textContent = active
+      ? `${items.length} festività nei prossimi 13 mesi · attive 00:00–24:00`
+      : 'Disattivato: nei festivi seguono le normali fasce orarie';
+  }
+  if (!items.length) {
+    body.innerHTML =
+      '<tr><td colspan="4" class="muted" style="padding:10px">Nessuna festività trovata.</td></tr>';
+    return;
+  }
+  body.innerHTML = items
+    .map((h) => {
+      const badge = active
+        ? '<span class="slot-mode virtuale">Centralino Virtuale 24h</span>'
+        : '<span class="muted">Disattivato</span>';
+      const todayBadge = h.isToday
+        ? ' <span class="slot-mode inoltro" style="margin-left:6px">OGGI</span>'
+        : '';
+      return `<tr style="border-bottom:1px solid #f1f5f9">
+        <td style="padding:8px 10px;font-weight:600">${escapeHtml(h.dateLabel)}${todayBadge}</td>
+        <td style="padding:8px 10px">${escapeHtml(h.weekday)}</td>
+        <td style="padding:8px 10px">${escapeHtml(h.name)}</td>
+        <td style="padding:8px 10px">${badge}</td>
+      </tr>`;
     })
     .join('');
 }
@@ -261,11 +299,30 @@ async function updateModalita(payload, successMsg) {
   }
 }
 
+async function toggleHolidays(holidaysVirtuale) {
+  try {
+    state.schedule = await api('/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holidaysVirtuale: Boolean(holidaysVirtuale) })
+    });
+    renderSchedule();
+    toast(
+      holidaysVirtuale
+        ? 'Modalità festivi attivata (Centralino Virtuale 24h nei festivi)'
+        : 'Modalità festivi disattivata'
+    );
+    await loadAll();
+  } catch (err) {
+    toast(err.message, true);
+  }
+}
+
 async function saveSchedule() {
   try {
     const s = state.schedule || { slots: [] };
     const enabled = $('#pbxScheduleEnabled').checked;
-    const holidaysVirtuale = $('#pbxScheduleHolidays').checked;
+    const holidaysVirtuale = s.holidaysVirtuale !== false;
     const customHolidays = $('#pbxCustomHolidays').value.trim();
     const defaultMode = $('#pbxScheduleDefaultMode').value;
     const slots = s.slots || [];
@@ -413,6 +470,8 @@ function bindEvents() {
     toast('Fascia rimossa. Premi "Salva programma orario" per applicare.');
   });
 
+  $('#pbxHolidayOn').addEventListener('click', () => toggleHolidays(true));
+  $('#pbxHolidayOff').addEventListener('click', () => toggleHolidays(false));
   $('#pbxScheduleSave').addEventListener('click', saveSchedule);
 
   $('#blAddBtn').addEventListener('click', addBlocked);
