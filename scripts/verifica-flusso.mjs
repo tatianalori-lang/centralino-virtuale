@@ -26,7 +26,7 @@ import {
   scegliStatoTecnico,
   buildRichiesta
 } from '../lib/interventi.js';
-import { computeDesiredMode } from '../lib/schedule.js';
+import { computeDesiredMode, getItalianHolidayName } from '../lib/schedule.js';
 import * as store from '../lib/store.js';
 
 let fail = 0;
@@ -358,6 +358,32 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   check('schedule ufficio mer 13:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-11-25T12:00:00Z')) === 'virtuale');
   check('schedule ufficio mer 14:30 -> inoltro', computeDesiredMode(officeSched, new Date('2026-11-25T13:30:00Z')) === 'inoltro');
   check('schedule ufficio mer 17:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-11-25T16:00:00Z')) === 'virtuale');
+
+  // Giorni festivi italiani -> virtuale tutto il giorno (anche alle 10:00 di un feriale)
+  check('festivi: 1 gennaio Capodanno', getItalianHolidayName(2026, 1, 1) === 'Capodanno');
+  check('festivi: 6 gennaio Epifania', getItalianHolidayName(2026, 1, 6) === 'Epifania');
+  check('festivi: Pasquetta 2026 (6 apr)', getItalianHolidayName(2026, 4, 6) === "Lunedì dell'Angelo (Pasquetta)");
+  check('festivi: Pasquetta 2027 (29 mar)', getItalianHolidayName(2027, 3, 29) === "Lunedì dell'Angelo (Pasquetta)");
+  check('festivi: 25 aprile', getItalianHolidayName(2026, 4, 25) === 'Festa della Liberazione');
+  check('festivi: 1 maggio', getItalianHolidayName(2026, 5, 1) === 'Festa dei Lavoratori');
+  check('festivi: 2 giugno', getItalianHolidayName(2026, 6, 2) === 'Festa della Repubblica');
+  check('festivi: 15 agosto', getItalianHolidayName(2026, 8, 15) === 'Ferragosto');
+  check('festivi: 1 novembre', getItalianHolidayName(2026, 11, 1) === 'Ognissanti');
+  check('festivi: 8 dicembre', getItalianHolidayName(2026, 12, 8) === 'Immacolata Concezione');
+  check('festivi: 25 dicembre', getItalianHolidayName(2026, 12, 25) === 'Natale');
+  check('festivi: 26 dicembre', getItalianHolidayName(2026, 12, 26) === 'Santo Stefano');
+  check('festivi: 27 novembre feriale normale', getItalianHolidayName(2026, 11, 27) === null);
+  check('schedule Natale ven 10:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-12-25T09:00:00Z')) === 'virtuale');
+  check('schedule 8 dic mar 10:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-12-08T09:00:00Z')) === 'virtuale');
+  check('schedule Pasquetta lun 10:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-04-06T08:00:00Z')) === 'virtuale');
+  check(
+    'schedule festivi disattivati -> inoltro',
+    computeDesiredMode({ ...officeSched, holidaysVirtuale: false }, new Date('2026-12-08T09:00:00Z')) === 'inoltro'
+  );
+  check(
+    'schedule festivo personalizzato 29/06 -> virtuale',
+    computeDesiredMode({ ...officeSched, customHolidays: ['29/06'] }, new Date('2026-06-29T08:00:00Z')) === 'virtuale'
+  );
 }
 
 // Blacklist: blocco numeri in ingresso

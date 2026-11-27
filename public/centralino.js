@@ -108,15 +108,30 @@ function renderStatus() {
   $('#pbxTimAlt').textContent = `Se il numero è interno VoIP (100 o 101–106), la deviazione TIM verso il centralino resta *21*00390686358716#.`;
 }
 
+function formatCustomHolidaysForInput(list) {
+  return (list || [])
+    .map((item) => {
+      const m = String(item).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (m) return `${m[3]}/${m[2]}/${m[1]}`;
+      const m2 = String(item).match(/^(\d{2})-(\d{2})$/);
+      if (m2) return `${m2[2]}/${m2[1]}`;
+      return item;
+    })
+    .join(', ');
+}
+
 function renderSchedule() {
   const s = state.schedule || {};
   $('#pbxScheduleEnabled').checked = Boolean(s.enabled);
+  $('#pbxScheduleHolidays').checked = s.holidaysVirtuale !== false;
+  $('#pbxCustomHolidays').value = formatCustomHolidaysForInput(s.customHolidays);
   $('#pbxScheduleDefaultMode').value = s.defaultMode || 'virtuale';
 
+  const holidayNote = s.activeHoliday ? ` · Oggi festivo (${s.activeHoliday})` : '';
   const currentMode = s.enabled
     ? `Attiva ora: ${
         s.currentDesiredMode === 'inoltro' ? 'Inoltro diretto' : 'Centralino Virtuale'
-      }`
+      }${holidayNote}`
     : 'Programmazione disattivata (gestione manuale)';
   $('#pbxScheduleDesc').textContent = `${currentMode} · Fuso orario ${s.timezone || 'Europe/Rome'}.`;
 
@@ -250,13 +265,21 @@ async function saveSchedule() {
   try {
     const s = state.schedule || { slots: [] };
     const enabled = $('#pbxScheduleEnabled').checked;
+    const holidaysVirtuale = $('#pbxScheduleHolidays').checked;
+    const customHolidays = $('#pbxCustomHolidays').value.trim();
     const defaultMode = $('#pbxScheduleDefaultMode').value;
     const slots = s.slots || [];
 
     state.schedule = await api('/api/schedule', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ enabled, defaultMode, slots })
+      body: JSON.stringify({
+        enabled,
+        holidaysVirtuale,
+        customHolidays,
+        defaultMode,
+        slots
+      })
     });
     renderSchedule();
     const allSame =

@@ -333,9 +333,11 @@ async function loadSchedule() {
 function renderSchedule() {
   const s = state.schedule || {};
   $('#scheduleEnabled').checked = Boolean(s.enabled);
+  $('#scheduleHolidays').checked = s.holidaysVirtuale !== false;
   $('#scheduleDefaultMode').value = s.defaultMode || 'virtuale';
+  const hol = s.activeHoliday ? ` · Oggi festivo (${s.activeHoliday})` : '';
   $('#scheduleDesc').textContent = s.enabled
-    ? `Programmazione attiva · fuori fascia: ${
+    ? `Programmazione attiva${hol} · fuori fascia: ${
         s.defaultMode === 'inoltro' ? 'Inoltro diretto' : 'Centralino Virtuale'
       }`
     : 'Programmazione disattivata · usa il pulsante per attivarla';
@@ -373,6 +375,7 @@ async function saveSchedule() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         enabled: $('#scheduleEnabled').checked,
+        holidaysVirtuale: $('#scheduleHolidays').checked,
         defaultMode: $('#scheduleDefaultMode').value,
         slots: state.schedule.slots || []
       })

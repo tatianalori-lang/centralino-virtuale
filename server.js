@@ -36,7 +36,13 @@ import { basicAuth, authStatus } from './lib/auth.js';
 import { webexStatus } from './lib/webex.js';
 import { twilioInsightsStatus } from './lib/twilioInsights.js';
 import { scheduleCallerRecovery } from './lib/callerRecovery.js';
-import { loadSchedule, saveSchedule, computeDesiredMode, startScheduler } from './lib/schedule.js';
+import {
+  loadSchedule,
+  saveSchedule,
+  computeDesiredMode,
+  getActiveHoliday,
+  startScheduler
+} from './lib/schedule.js';
 
 const TELNYX_PREFIX = '/telnyx';
 
@@ -314,19 +320,24 @@ app.get('/api/schedule', (req, res) => {
   const schedule = loadSchedule();
   res.json({
     ...schedule,
-    currentDesiredMode: computeDesiredMode(schedule)
+    currentDesiredMode: computeDesiredMode(schedule),
+    activeHoliday: getActiveHoliday(schedule)
   });
 });
 
 app.post(
   '/api/schedule',
   asyncRoute(async (req, res) => {
-    const { enabled, slots, defaultMode, timezone } = req.body || {};
+    const { enabled, slots, defaultMode, timezone, holidaysVirtuale, customHolidays } =
+      req.body || {};
     const schedule = await saveSchedule({
       enabled: enabled !== undefined ? Boolean(enabled) : undefined,
       slots: slots !== undefined ? slots : undefined,
       defaultMode: defaultMode !== undefined ? defaultMode : undefined,
-      timezone: timezone !== undefined ? timezone : undefined
+      timezone: timezone !== undefined ? timezone : undefined,
+      holidaysVirtuale:
+        holidaysVirtuale !== undefined ? Boolean(holidaysVirtuale) : undefined,
+      customHolidays: customHolidays !== undefined ? customHolidays : undefined
     });
     // Applica subito la modalità desiderata
     const desired = computeDesiredMode(schedule);
@@ -335,7 +346,8 @@ app.post(
     }
     return res.json({
       ...schedule,
-      currentDesiredMode: desired
+      currentDesiredMode: desired,
+      activeHoliday: getActiveHoliday(schedule)
     });
   })
 );
