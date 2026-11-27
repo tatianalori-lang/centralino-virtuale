@@ -29,6 +29,7 @@ import {
 import {
   computeDesiredMode,
   getItalianHolidayName,
+  isLunchBreak,
   listUpcomingHolidays
 } from '../lib/schedule.js';
 import * as store from '../lib/store.js';
@@ -220,7 +221,7 @@ check('isDialAnswered no-answer', isDialAnswered('no-answer') === false);
 check('renderDialResult completed -> Hangup', /<Hangup\/>/.test(renderDialResult('completed')) && !/<Say/.test(renderDialResult('completed')));
 check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult('no-answer')));
 {
-  const finalXml = renderFinal({ ticketId: 'TK-20261126-0001' });
+  const finalXml = renderFinal({ ticketId: 'TK-20261126-0001' }, { lunchBreak: false });
   check(
     'renderFinal chiude subito senza operatore/WhatsApp, applica rate SSML e ricorda orari + email urgente più veloce',
     !/operatore|whatsapp|al più presto/i.test(finalXml) &&
@@ -231,6 +232,14 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
       /8:30/.test(finalXml) &&
       /17:00/.test(finalXml),
     finalXml
+  );
+  const lunchFinalXml = renderFinal({ ticketId: 'TK-20261127-0002' }, { lunchBreak: true });
+  check(
+    'renderFinal pausa pranzo usa messaggio dedicato senza orari/email',
+    /chiusi per la pausa pranzo\. Sarà ricontattato dalle 14:30\. Grazie\./.test(lunchFinalXml) &&
+      !/assistenza chiocciola/i.test(lunchFinalXml) &&
+      /<Hangup\/>/.test(lunchFinalXml),
+    lunchFinalXml
   );
   const issueSession = createSession({ callSid: 'CA-issue', from: '+393331234567', to: '067821202' });
   issueSession.step = 'issue';
@@ -379,6 +388,9 @@ check('renderDialResult no-answer -> Say + Hangup', /<Say/.test(renderDialResult
   check('festivi: 26 dicembre', getItalianHolidayName(2026, 12, 26) === 'Santo Stefano');
   check('festivi: 27 novembre feriale normale', getItalianHolidayName(2026, 11, 27) === null);
   check('schedule Natale ven 10:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-12-25T09:00:00Z')) === 'virtuale');
+  check('pausa pranzo ven 13:15 -> true', isLunchBreak(officeSched, new Date('2026-11-27T12:15:00Z')) === true);
+  check('pausa pranzo ven 14:30 -> false', isLunchBreak(officeSched, new Date('2026-11-27T13:30:00Z')) === false);
+  check('pausa pranzo Natale 13:15 -> false (festivo)', isLunchBreak(officeSched, new Date('2026-12-25T12:15:00Z')) === false);
   check('schedule 8 dic mar 10:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-12-08T09:00:00Z')) === 'virtuale');
   check('schedule Pasquetta lun 10:00 -> virtuale', computeDesiredMode(officeSched, new Date('2026-04-06T08:00:00Z')) === 'virtuale');
   check(
